@@ -1,0 +1,230 @@
+##  Copyright (c) Eduardo Julian. All rights reserved.
+##  This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+##  If a copy of the MPL was not distributed with this file,
+##  You can obtain one at http://mozilla.org/MPL/2.0/.
+
+(;import lux
+         (lux (control monad
+                       enum)
+              (data maybe
+                    (number #refer #all #open ("i:" Int/Ord Int/Show))
+                    (list #refer #all #open ("" List/Functor List/Fold))
+                    (text #open ("text:" Text/Monoid))
+                    tuple)
+              (codata io)
+              (host jvm
+                    io))
+         (. (core #as &&)
+            (server #as &&server)
+            (html #as &html)))
+
+## [Host]
+(jvm-import #long (java.util.List e)
+  (add [] [e] boolean #io)
+  (get [] [int] e)
+  (set [] [int e] e #io)
+  (remove [] [int] e #io)
+  (size [] [] int))
+
+(jvm-import (java.util.concurrent.CopyOnWriteArrayList e)
+  (<init> [] []))
+
+## [Types]
+(deftype AppState
+  (CopyOnWriteArrayList &&;Task))
+
+(deftype AppData
+  (List (, Int &&;Task)))
+
+## [Program]
+(def server-port &&;Port 8080)
+
+(def page-title Text "Lux TODO")
+
+(def (try-all xs)
+  (All [a] (-> (List (Maybe a)) (Maybe a)))
+  (case xs
+    #;Nil
+    #;None
+
+    (#;Cons x xs')
+    (case x
+      (#;Some _) x
+      #;None     (try-all xs'))))
+
+(def gen-state
+  (IO AppState)
+  (@io (CopyOnWriteArrayList::<init> [])))
+
+(def (get-task-list state)
+  (-> AppState (IO AppData))
+  (:: IO/Monad (wrap (map (lambda [idx] [idx (java.util.List::get [(_jvm_l2i idx)] state)])
+                          (range Int/Enum 0 (dec (_jvm_i2l (java.util.List::size [] state))))))))
+
+(def (add-task task-desc state)
+  (-> Text AppState (IO Bool))
+  (let [task {#&&;completed? false
+              #&&;description task-desc}]
+    (java.util.List::add [task] state)))
+
+(def (do-task idx state)
+  (-> Int AppState (IO Bool))
+  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
+    (do IO/Monad
+      [#let [task (java.util.List::get [(_jvm_l2i idx)] state)]
+       _ (java.util.List::set [(_jvm_l2i idx) (update@ #&&;completed? not task)] state)]
+      (wrap true))
+    (:: IO/Monad (wrap false))))
+
+(def (delete-task idx state)
+  (-> Int AppState (IO Bool))
+  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
+    (do IO/Monad
+      [_ (java.util.List::remove [(_jvm_l2i idx)] state)]
+      (wrap true))
+    (:: IO/Monad (wrap false))))
+
+(def (task-button$ action label idx)
+  (-> Text Text Int &html;Html)
+  (&html;form {"method" "post"
+               "action" "/"}
+              (&html;input {"type" "text"
+                            "name" action
+                            "value" (i:show idx)
+                            "style" "visibility: hidden;"})
+              (&html;input {"type" "submit"
+                            "value" label})
+              ))
+
+(def done-label     Text "&#10003;") ## check-mark
+(def not-done-label Text "&#8416;")  ## no-entry sign
+(def delete-label   Text "&#10060;") ## X-mark
+
+(def (task$ [task-idx task])
+  (-> (, Int &&;Task) &html;Html)
+  (let [(\slots [#&&;completed? #&&;description]) task]
+    (&html;div {}
+               (&html;span {}
+                           description)
+               (task-button$ "toggle" (if completed? done-label not-done-label) task-idx)
+               (task-button$ "delete" delete-label task-idx))))
+
+(def new-task-form$
+  &html;Html
+  (&html;form {"method" "post"
+               "action" "/"}
+              (&html;input {"type" "text"
+                            "name" "todo"
+                            "placeholder" "What needs to be done?"})
+              (&html;input {"type" "submit"
+                            "value" "Submit"})))
+
+(do-template [<name> <filter> <post>]
+  [(def (<filter> [idx task])
+     (-> (, Int &&;Task) Bool)
+     (<post> (get@ #&&;completed? task)))
+
+   (def (<name> tasks)
+     (-> AppData Int)
+     (|> tasks
+         (filter <filter>)
+         (size)))]
+
+  [num-active-tasks    active-task?    not]
+  [num-completed-tasks completed-task? id]
+  )
+
+(def (tasks-left$ tasks)
+  (-> AppData &html;Html)
+  (&html;span {}
+              ($ text:++ (i:show (num-active-tasks tasks)) " items left")))
+
+(def all-path       &;URI "/")
+(def active-path    &;URI "/active")
+(def completed-path &;URI "/completed")
+
+(def task-selectors$
+  &html;Html
+  (&html;div {}
+             (&html;a {"href" all-path}       "All")
+             (&html;a {"href" active-path}    "Active")
+             (&html;a {"href" completed-path} "Completed")))
+
+(def (clear-completed$ tasks)
+  (-> AppData &html;Html)
+  (if (i:> (num-completed-tasks tasks) 0)
+    (&html;a {"href" "/clear-completed"} "Clear completed")
+    (&html;span {} "")))
+
+(def (task-list$ tasks)
+  (-> AppData &html;Html)
+  (&html;div {}
+             (&html;div {}
+                        new-task-form$)
+             (&html;div' (&html;@attrs {})
+                         (map task$ tasks))
+             (&html;div {}
+                        (tasks-left$ tasks)
+                        task-selectors$
+                        (clear-completed$ tasks))
+             ))
+
+(def (page$ content)
+  (-> &html;Html &html;Html)
+  (&html;html {}
+              (&html;head {}
+                          (&html;title {} page-title))
+              (&html;body {}
+                          content)))
+
+(deftype DisplayFilter
+  (| #All
+     #Active
+     #Completed))
+
+(def (filter-tasks display-filter tasks)
+  (-> DisplayFilter AppData AppData)
+  (case display-filter
+    #All       tasks
+    #Active    (filter active-task?    tasks)
+    #Completed (filter completed-task? tasks)))
+
+(def (handler state req)
+  (-> AppState &&;RequestHandler)
+  (let [(\slots [#&&;request-method #&&;request-uri #&&;request-headers #&&;request-params #&&;request-body]) req]
+    (do IO/Monad
+      [#let [referer (? "/" (&&server;get-header "Referer" request-headers))]
+       _ (print-line (text:++ "URI: " request-uri))
+       _ (print-line (text:++ "FROM: " referer))
+       [succeded? refer?] (? (wrap [(i:= 0 (size request-params)) false])
+                             (try-all (@list (do Maybe/Monad
+                                               [task-desc (&&server;get-param "todo" request-params)]
+                                               (wrap [(add-task task-desc state)
+                                                      true]))
+                                             (do Maybe/Monad
+                                               [id' (&&server;get-param "toggle" request-params)
+                                                id (:: Int/Read (read id'))]
+                                               (wrap [(do-task id state)
+                                                      true]))
+                                             (do Maybe/Monad
+                                               [id' (&&server;get-param "delete" request-params)
+                                                id (:: Int/Read (read id'))]
+                                               (wrap [(delete-task id state)
+                                                      true])))))
+       tasks (get-task-list state)
+       #let [display-filter (case request-uri
+                              (\~ (~ all-path))       #All
+                              (\~ (~ active-path))    #Active
+                              (\~ (~ completed-path)) #Completed
+                              _                       #All)
+             tasks-to-show (filter-tasks display-filter tasks)]
+       #let [output-page (page$ (task-list$ tasks-to-show))]]
+      (wrap (if refer?
+              (&;redirect referer)
+              (&&;html-response &&;ok-status output-page))))
+    ))
+
+(program args
+  (do IO/Monad
+    [app-state gen-state]
+    (&&server;deploy-server server-port (handler app-state))))

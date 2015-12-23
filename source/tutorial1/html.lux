@@ -1,0 +1,76 @@
+##  Copyright (c) Eduardo Julian. All rights reserved.
+##  This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+##  If a copy of the MPL was not distributed with this file,
+##  You can obtain one at http://mozilla.org/MPL/2.0/.
+
+(;import lux
+         (lux (data (text #open ("text:" Text/Monoid))
+                    (list #refer #all #open ("" List/Functor List/Fold)))
+              (meta lux
+                    syntax
+                    (ast #as ast))))
+
+## [Types]
+(deftype #export Html Text)
+
+(deftype #export Attributes
+  (List (, Text Text)))
+
+## [Syntax]
+(defsyntax #export (@attrs [attrs (record^ (*^ (&^ text^ id^)))])
+  (:: Lux/Monad (wrap (@list (` (@list (~@ (map (: (-> (, Text AST) AST)
+                                                   (lambda [[key val]]
+                                                     (` [(~ (ast;text key)) (~ val)])))
+                                                attrs))))))))
+
+(defsyntax #export (%tag% [name local-symbol^])
+  (:: Lux/Monad (wrap (@list (ast;text name)))))
+
+(defsyntax #export (%tag-func-name% [name local-symbol^])
+  (:: Lux/Monad (wrap (@list (ast;symbol ["" (text:++ name "'")])))))
+
+## [Functions]
+(def (concat-with sep elems)
+  (-> Text (List Text) Text)
+  (|> elems
+      (interpose sep)
+      (foldL text:++ "")))
+
+(def (attrs->text attrs)
+  (-> Attributes Text)
+  (|> attrs
+      (map (lambda [[key val]] ($ text:++ key "=" "\"" val "\"")))
+      (concat-with " ")))
+
+(def #export (node name attrs children)
+  (-> Text Attributes (List Html) Html)
+  ($ text:++ "<" name " " (attrs->text attrs) ">" (concat-with " " children) "</" name ">"))
+
+(do-template [<name>]
+  [(let% [<fun-name> (%tag-func-name% <name>)]
+     (def #export <fun-name>
+       (node (%tag% <name>)))
+
+     (defsyntax #export (<name> attrs [children (*^ id^)])
+       (let [attrs' (case attrs
+                      [_ (#;RecordS _)]
+                      (` (@attrs (~ attrs)))
+
+                      _
+                      attrs)]
+         (:: Lux/Monad (wrap (@list (` (<fun-name> (~ attrs') (@list (~@ children))))))))))]
+
+  [html]
+  ## Head
+  [head]
+  [meta]
+  [link]
+  [title]
+  ## Body
+  [body]
+  [div]
+  [span]
+  [a]
+  [form]
+  [input]
+  )

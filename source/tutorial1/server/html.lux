@@ -17,11 +17,16 @@
   (List (, Text Text)))
 
 ## [Syntax]
-(defsyntax #export (@attrs [attrs (record^ (*^ (&^ text^ id^)))])
-  (:: Lux/Monad (wrap (@list (` (@list (~@ (map (: (-> (, Text AST) AST)
-                                                   (lambda [[key val]]
-                                                     (` [(~ (ast;text key)) (~ val)])))
-                                                attrs))))))))
+(def attributes^
+  (Parser (List (, Text AST)))
+  (record^ (*^ (&^ text^ id^))))
+
+(defsyntax #export (@attrs [attrs attributes^])
+  (:: Lux/Monad (wrap (@list (` (: Attributes
+                                   (@list (~@ (map (: (-> (, Text AST) AST)
+                                                      (lambda [[key val]]
+                                                        (` [(~ (ast;text key)) (~ val)])))
+                                                   attrs)))))))))
 
 (defsyntax #export (%tag% [name local-symbol^])
   (:: Lux/Monad (wrap (@list (ast;text name)))))

@@ -18,372 +18,50 @@
               (host jvm
                     io))
          (. (core #as &&)
-            (server #as &&server)
-            (html #as &html)
-            (css #as &css)))
-
-## [Host]
-(jvm-import #long (java.util.List e)
-  (add [] [e] boolean #io)
-  (get [] [int] e)
-  (set [] [int e] e #io)
-  (remove [] [int] e #io)
-  (size [] [] int))
-
-(jvm-import (java.util.concurrent.CopyOnWriteArrayList e)
-  (<init> [] []))
-
-## [Types]
-(deftype AppState
-  (CopyOnWriteArrayList &&;Task))
-
-(deftype AppData
-  (List (, Int &&;Task)))
+            (state #as &&state)
+            (util #as &&util)
+            (ui #as &&ui)
+            (server (core #as &&server)
+                    (host #as &&server-host))))
 
 ## [Program]
-(def server-port &&;Port 8080)
-
-(def page-title Text "Lux TODO")
-
-(def (try-all xs)
-  (All [a] (-> (List (Maybe a)) (Maybe a)))
-  (case xs
-    #;Nil
-    #;None
-
-    (#;Cons x xs')
-    (case x
-      (#;Some _) x
-      #;None     (try-all xs'))))
-
-(def gen-state
-  (IO AppState)
-  (@io (CopyOnWriteArrayList::<init> [])))
-
-(do-template [<name> <filter> <post>]
-  [(def (<filter> task)
-     (-> &&;Task Bool)
-     (<post> (get@ #&&;completed? task)))
-
-   (def (<name> tasks)
-     (-> AppData Int)
-     (|> tasks
-         (filter (lambda [[idx task]] (<filter> task)))
-         (size)))]
-
-  [num-active-tasks    active-task?    not]
-  [num-completed-tasks completed-task? id]
-  )
-
-(def (get-task-list state)
-  (-> AppState (IO AppData))
-  (:: IO/Monad (wrap (map (lambda [idx] [idx (java.util.List::get [(_jvm_l2i idx)] state)])
-                          (range Int/Enum 0 (dec (_jvm_i2l (java.util.List::size [] state))))))))
-
-(def (add-task task-desc state)
-  (-> Text AppState (IO Bool))
-  (let [task {#&&;completed? false
-              #&&;description task-desc}]
-    (java.util.List::add [task] state)))
-
-(def (do-task idx state)
-  (-> Int AppState (IO Bool))
-  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
-    (do IO/Monad
-      [#let [task (java.util.List::get [(_jvm_l2i idx)] state)]
-       _ (java.util.List::set [(_jvm_l2i idx) (update@ #&&;completed? not task)] state)]
-      (wrap true))
-    (:: IO/Monad (wrap false))))
-
-(def (delete-task idx state)
-  (-> Int AppState (IO Bool))
-  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
-    (do IO/Monad
-      [_ (java.util.List::remove [(_jvm_l2i idx)] state)]
-      (wrap true))
-    (:: IO/Monad (wrap false))))
-
-(def (clear-completed state)
-  (-> AppState (IO Bool))
-  (do IO/Monad
-    [task-list (get-task-list state)
-     _ (|> task-list
-           reverse
-           (map% % (: (-> (, Int &&;Task) (IO Bool))
-                      (lambda [[idx task]]
-                        (if (completed-task? task)
-                          (delete-task idx state)
-                          (wrap true))))))]
-    (wrap true)))
-
-(def css
-  &css;CSS
-  (&css;css
-   (list:join
-    (@list (&css;rule "body"
-                      {"font" "14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
-                       "line-height" "1.4em"
-                       "background" "#f5f5f5"
-                       "color" "#4d4d4d"
-                       "min-width" "230px"
-                       "max-width" "550px"
-                       "margin" "0 auto"
-                       "-webkit-font-smoothing" "antialiased"
-                       "-moz-font-smoothing" "antialiased"
-                       "font-smoothing" "antialiased"
-                       "font-weight" "300"})
-           (&css;rule ".todo"
-                      {"background" "#fff"
-                       "margin" "130px 0 40px 0"
-                       "position" "relative"
-                       "box-shadow" "0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 25px 50px 0 rgba(0, 0, 0, 0.1)"}
-                      (&css;rule "> .header"
-                                 {"display" "block"}
-                                 (&css;rule "> .new-task-form"
-                                            {"display" "block"
-                                             "margin-top" "0em"}
-                                            (&css;rule "> .new-task-input"
-                                                       {"padding" "16px 16px 16px 60px"
-                                                        "border" "none"
-                                                        "width" "85%"
-                                                        "background" "rgba(0, 0, 0, 0.003)"
-                                                        }
-                                                       )
-                                            (&css;rule "> .new-task-submit"
-                                                       {"background-color" "inherit"
-                                                        "border" "none"
-                                                        "font-weight" "bold"
-                                                        "font-size" "1.25em"
-                                                        "cursor" "pointer"}
-                                                       ))
-                                 )
-                      (&css;rule "> .task-list"
-                                 {"border-top" "1px solid #e6e6e6"
-                                  "margin" "0"
-                                  "padding" "0"}
-                                 (&css;rule "> .task"
-                                            {"position" "relative"
-                                             "font-size" "24px"
-                                             "border-bottom" "1px solid #ededed"}
-                                            (&css;rule "> .completed-toggle"
-                                                       {"color" "#ededed"
-                                                        "text-decoration" "none"})
-                                            (&css;rule "> .task-description"
-                                                       {"white-space" "pre-line"
-                                                        "word-break" "break-all"
-                                                        "line-height" "1.2"})
-                                            (&css;rule "> .delete-button"
-                                                       {"color" "#af5b5e"
-                                                        "text-decoration" "none"
-                                                        "float" "right"
-                                                        "margin-top" "0.125em"
-                                                        "margin-right" "0.5em"
-                                                        }))
-                                 (&css;rule "> .task.completed"
-                                            {}
-                                            (&css;rule "> .completed-toggle"
-                                                       {"color" "#bddad5"})
-                                            (&css;rule "> .task-description"
-                                                       {"color" "#d9d9d9"
-                                                        "text-decoration" "line-through"})
-                                            ))
-                      (&css;rule "> .footer"
-                                 {"color" "#777"
-                                  "padding" "10px 15px"
-                                  "height" "20px"
-                                  "text-align" "center"
-                                  "border-top" "1px solid #e6e6e6"}
-                                 (&css;rule "> .tasks-left"
-                                            {"float" "left"
-                                             "text-align" "left"})
-                                 (&css;rule "> .filters"
-                                            {"margin" "0"
-                                             "padding" "0"
-                                             "position" "absolute"
-                                             "right" "0"
-                                             "left" "0"}
-                                            (&css;rule "> .filter"
-                                                       {"color" "inherit"
-                                                        "margin" "3px"
-                                                        "padding" "3px 7px"
-                                                        "text-decoration" "none"
-                                                        "border" "1px solid transparent"
-                                                        "border-radius" "3px"})
-                                            (&css;rule "> .filter.active"
-                                                       {"border-color" "rgba(175, 47, 47, 0.2)"}))
-                                 (&css;rule "> .clear-completed"
-                                            {"float" "right"
-                                             "position" "relative"
-                                             "line-height" "20px"
-                                             "text-decoration" "none"
-                                             "cursor" "pointer"
-                                             "position" "relative"
-                                             "color" "inherit"}))
-                      )
-           ))))
-
-(def (task-button$ path css-class label idx)
-  (-> Text Text Text Int &html;Html)
-  (&html;a {"class" css-class
-            "href" ($ text:++ path "?id=" (i:show idx))}
-           label))
-
-(def done-label     Text "&#9745;") ## check-mark
-(def not-done-label Text "&#9744;")  ## no-entry sign
-(def delete-label   Text "&#10060;") ## X-mark
-
-(def all-path             &&;URI "/")
-(def active-path          &&;URI "/active")
-(def completed-path       &&;URI "/completed")
-(def toggle-path          &&;URI "/toggle")
-(def delete-path          &&;URI "/delete")
-(def clear-completed-path &&;URI "/clear-completed")
-
-(def (task$ [task-idx task])
-  (-> (, Int &&;Task) &html;Html)
-  (let [(\slots [#&&;completed? #&&;description]) task]
-    (&html;div {"class" (text:++ "task" (if completed? " completed" ""))}
-               (task-button$ toggle-path "completed-toggle" (if completed? done-label not-done-label) task-idx)
-               (&html;span {"class" "task-description"}
-                           description)
-               (task-button$ delete-path "delete-button" delete-label task-idx))))
-
-(def new-task-form$
-  &html;Html
-  (&html;form {"class" "new-task-form"
-               "method" "post"
-               "action" "/"}
-              (&html;input {"class" "new-task-input"
-                            "type" "text"
-                            "name" "todo"
-                            "placeholder" "What needs to be done?"})
-              (&html;input {"class" "new-task-submit"
-                            "type" "submit"
-                            "value" "Submit"})))
-
-(def (tasks-left$ tasks)
-  (-> AppData &html;Html)
-  (&html;span {"class" "tasks-left"}
-              ($ text:++ (i:show (num-active-tasks tasks)) " items left")))
-
-
-(deftype DisplayFilter
-  (| #All
-     #Active
-     #Completed))
-
-(defstruct DisplayFilter/Eq (Eq DisplayFilter)
-  (def (= x y)
-    (case [x y]
-      (\template [<tag>]
-       [[<tag> <tag>] true])
-      ([#All] [#Active] [#Completed])
-      
-      _
-      false)))
-
-(def (filters$ active)
-  (-> DisplayFilter &html;Html)
-  (using DisplayFilter/Eq
-    (let% [<filters> (do-template [<tag> <label> <path>]
-                       [(&html;a {"class" (text:++ "filter" (if (= <tag> active) " active" "")) "href" <path>} <label>)]
-
-                       [#All       "All"       all-path]
-                       [#Active    "Active"    active-path]
-                       [#Completed "Completed" completed-path])]
-      (&html;div {"class" "filters"}
-                 <filters>))))
-
-(def (clear-completed$ show-clear-completed?)
-  (-> Bool &html;Html)
-  (if show-clear-completed?
-    (&html;a {"class" "clear-completed" "href" clear-completed-path} "Clear completed")
-    (&html;span {} "")))
-
-(def task-list$
-  (-> AppData &html;Html)
-  (. (&html;div' (&html;@attrs {"class" "task-list"}))
-     (map task$)))
-
-(def (todo$ show-clear-completed? active-filter tasks)
-  (-> Bool DisplayFilter AppData &html;Html)
-  (&html;div {"class" "todo"}
-             (&html;div {"class" "header"}
-                        new-task-form$)
-             (task-list$ tasks)
-             (&html;div {"class" "footer"}
-                        (tasks-left$ tasks)
-                        (filters$ active-filter)
-                        (clear-completed$ show-clear-completed?))
-             ))
-
-(def (show-clear-completed? state)
-  (-> AppState (IO Bool))
-  (do IO/Monad
-    [tasks (get-task-list state)]
-    (wrap (i:> (num-completed-tasks tasks) 0))))
-
-(def css-path &&;URI "/tutorial1.css")
-
-(def (page$ content)
-  (-> &html;Html &html;Html)
-  (&html;html {}
-              (&html;head {}
-                          (&html;title {} page-title)
-                          (&html;link {"rel" "stylesheet"
-                                       "type" "text/css"
-                                       "href" css-path}))
-              (&html;body {}
-                          content)))
-
-(def (filter-tasks display-filter tasks)
-  (-> DisplayFilter AppData AppData)
-  (case display-filter
-    #All       tasks
-    #Active    (filter (. active-task? second)    tasks)
-    #Completed (filter (. completed-task? second) tasks)))
-
-(def default-host &&;URL "http://localhost:8080")
-(def default-referer &&;URL (text:++ default-host "/"))
-
 (def (handler state req)
-  (-> AppState &&;RequestHandler)
-  (let [(\slots [#&&;request-method #&&;request-uri #&&;request-headers #&&;request-params #&&;request-body]) req]
+  (-> &&state;AppState &&server;RequestHandler)
+  (let [(\slots [#&&server;request-method #&&server;request-uri #&&server;request-headers #&&server;request-params #&&server;request-body]) req]
     (case request-uri
-      (\~ (~ css-path))
-      (:: IO/Monad (wrap (&&;css-response css)))
+      (\~ (~ &&util;css-path))
+      (:: IO/Monad (wrap (&&server;css-response &&ui;css)))
       
       _
       (do IO/Monad
-        [#let [referer (? default-referer
+        [#let [referer (? &&util;default-referer
                           (&&server;get-header "Referer" request-headers))
-               same-url? (text:= (text:++ default-host request-uri) referer)]
-         show-clear-completed? (show-clear-completed? state)
+               same-url? (text:= (text:++ &&util;default-host request-uri) referer)]
          [succeded? refer?] (: (IO (, Bool Bool))
                                (? (wrap [(i:= 0 (size request-params)) false])
                                   (: (Maybe (IO (, Bool Bool)))
                                      (case request-uri
-                                       (\~ (~ toggle-path))
+                                       (\~ (~ &&util;toggle-path))
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
                                           id (:: Int/Read (read id'))]
                                          (wrap (do IO/Monad
-                                                 [success (do-task id state)]
+                                                 [success (&&state;do-task id state)]
                                                  (wrap [success true]))))
                                        
-                                       (\~ (~ delete-path))
+                                       (\~ (~ &&util;delete-path))
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
                                           id (:: Int/Read (read id'))]
                                          (wrap (do IO/Monad
-                                                 [success (delete-task id state)]
+                                                 [success (&&state;delete-task id state)]
                                                  (wrap [success true]))))
 
-                                       (\~ (~ clear-completed-path))
+                                       (\~ (~ &&util;clear-completed-path))
                                        (do Maybe/Monad
                                          []
                                          (wrap (do IO/Monad
-                                                 [success (clear-completed state)]
+                                                 [success (&&state;clear-completed state)]
                                                  (wrap [success true]))))
                                        
                                        _
@@ -393,25 +71,27 @@
                                            (wrap (:: IO/Monad (wrap [true true])))
                                            (wrap (do IO/Monad
                                                    [success (if same-url?
-                                                              (add-task task-desc state)
+                                                              (&&state;add-task task-desc state)
                                                               (wrap true))]
                                                    (wrap [success true]))))
                                          )))))
-         tasks (get-task-list state)
-         #let [display-filter (case request-uri
-                                (\~ (~ all-path))       #All
-                                (\~ (~ active-path))    #Active
-                                (\~ (~ completed-path)) #Completed
-                                _                       #All)
-               tasks-to-show (filter-tasks display-filter tasks)]
-         #let [output-page (page$ (todo$ show-clear-completed? display-filter tasks-to-show))]]
+         show-clear-completed? (&&ui;show-clear-completed? state)
+         tasks (&&state;get-task-list state)
+         #let [tasks-left (|> tasks (filter (. &&state;active-task? second)) size)
+               display-filter (case request-uri
+                                (\~ (~ &&util;all-path))       #&&ui;All
+                                (\~ (~ &&util;active-path))    #&&ui;Active
+                                (\~ (~ &&util;completed-path)) #&&ui;Completed
+                                _                              #&&ui;All)
+               tasks-to-show (&&ui;filter-tasks display-filter tasks)]
+         #let [output-page (&&ui;page$ (&&ui;todo$ show-clear-completed? tasks-left display-filter tasks-to-show))]]
         (wrap (if (and refer?
                        (not same-url?))
-                (&&;redirect referer)
-                (&&;html-response &&;ok-status output-page)))))
+                (&&server;redirect referer)
+                (&&server;html-response output-page)))))
     ))
 
 (program args
   (do IO/Monad
-    [app-state gen-state]
-    (&&server;deploy-server server-port (handler app-state))))
+    [app-state &&state;gen-state]
+    (&&server-host;deploy-server &&util;server-port (handler app-state))))

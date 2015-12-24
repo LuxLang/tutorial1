@@ -1,0 +1,99 @@
+##  Copyright (c) Eduardo Julian. All rights reserved.
+##  This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+##  If a copy of the MPL was not distributed with this file,
+##  You can obtain one at http://mozilla.org/MPL/2.0/.
+
+(;import lux
+         (lux (control monad
+                       enum
+                       eq)
+              (data maybe
+                    (number #refer #all #open ("i:" Int/Ord Int/Show))
+                    (list #refer #all #open ("" List/Functor List/Fold
+                                             "list:" List/Monad))
+                    (text #open ("text:" Text/Monoid Text/Eq))
+                    (bool #open ("b:" Bool/Show))
+                    tuple)
+              (codata io)
+              (host jvm
+                    io))
+         (.. (core #as &)))
+
+## [Host]
+(jvm-import #long (java.util.List e)
+  (add [] [e] boolean #io)
+  (get [] [int] e)
+  (set [] [int e] e #io)
+  (remove [] [int] e #io)
+  (size [] [] int))
+
+(jvm-import (java.util.concurrent.CopyOnWriteArrayList e)
+  (<init> [] []))
+
+## [Types]
+(deftype #export AppState
+  (CopyOnWriteArrayList &;Task))
+
+(deftype #export AppData
+  (List (, Int &;Task)))
+
+## [Values]
+(def #export gen-state
+  (IO AppState)
+  (@io (CopyOnWriteArrayList::<init> [])))
+
+(do-template [<name> <filter> <post>]
+  [(def #export (<filter> task)
+     (-> &;Task Bool)
+     (<post> (get@ #&;completed? task)))
+
+   (def #export (<name> tasks)
+     (-> AppData Int)
+     (|> tasks
+         (filter (lambda [[idx task]] (<filter> task)))
+         (size)))]
+
+  [num-active-tasks    active-task?    not]
+  [num-completed-tasks completed-task? id]
+  )
+
+(def #export (get-task-list state)
+  (-> AppState (IO AppData))
+  (:: IO/Monad (wrap (map (lambda [idx] [idx (java.util.List::get [(_jvm_l2i idx)] state)])
+                          (range Int/Enum 0 (dec (_jvm_i2l (java.util.List::size [] state))))))))
+
+(def #export (add-task task-desc state)
+  (-> Text AppState (IO Bool))
+  (let [task {#&;completed? false
+              #&;description task-desc}]
+    (java.util.List::add [task] state)))
+
+(def #export (do-task idx state)
+  (-> Int AppState (IO Bool))
+  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
+    (do IO/Monad
+      [#let [task (java.util.List::get [(_jvm_l2i idx)] state)]
+       _ (java.util.List::set [(_jvm_l2i idx) (update@ #&;completed? not task)] state)]
+      (wrap true))
+    (:: IO/Monad (wrap false))))
+
+(def #export (delete-task idx state)
+  (-> Int AppState (IO Bool))
+  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
+    (do IO/Monad
+      [_ (java.util.List::remove [(_jvm_l2i idx)] state)]
+      (wrap true))
+    (:: IO/Monad (wrap false))))
+
+(def #export (clear-completed state)
+  (-> AppState (IO Bool))
+  (do IO/Monad
+    [task-list (get-task-list state)
+     _ (|> task-list
+           reverse
+           (map% % (: (-> (, Int &;Task) (IO Bool))
+                      (lambda [[idx task]]
+                        (if (completed-task? task)
+                          (delete-task idx state)
+                          (wrap true))))))]
+    (wrap true)))

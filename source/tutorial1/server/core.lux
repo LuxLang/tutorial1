@@ -1,0 +1,141 @@
+##  Copyright (c) Eduardo Julian. All rights reserved.
+##  This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+##  If a copy of the MPL was not distributed with this file,
+##  You can obtain one at http://mozilla.org/MPL/2.0/.
+
+(;import lux
+         (lux (codata io)
+              (data maybe
+                    (text #open ("text:" Text/Eq))
+                    (list #refer #all #open ("" List/Functor))
+                    (number #open ("i:" Int/Show)))
+              (host jvm)
+              (meta lux
+                    (ast #as ast)
+                    syntax))
+         (.. (html #as &html)
+             (css #as &css)))
+
+## [Host]
+(jvm-import java.lang.String
+  (getBytes [] [] (Array byte)))
+
+## [Types]
+(deftype #export HttpMethod
+  (| #GET
+     #POST
+     #PUT
+     #DELETE
+     #HEAD
+     #PATCH
+     #CONNECT
+     #OPTIONS
+     #TRACE))
+
+(deftype #export Port
+  Int)
+
+(deftype #export HttpStatus
+  Int)
+
+(deftype #export HttpHeaders
+  (List (, Text Text)))
+
+(deftype #export HttpParams
+  (List (, Text Text)))
+
+(deftype #export HttpBody
+  (Array (^ byte)))
+
+(deftype #export URL
+  Text)
+
+(deftype #export URI
+  Text)
+
+(deftype #export HttpRequest
+  (& #request-method  HttpMethod
+     #request-uri     URI
+     #request-headers HttpHeaders
+     #request-params  HttpParams
+     #request-body    HttpBody))
+
+(deftype #export HttpResponse
+  (& #response-status  HttpStatus
+     #response-headers HttpHeaders
+     #response-body    HttpBody))
+
+(deftype #export RequestHandler
+  (-> HttpRequest (IO HttpResponse)))
+
+## [Values]
+(def #export empty-headers
+  HttpHeaders
+  (@list))
+
+## [Syntax]
+(defsyntax #export (@headers [headers (record^ (*^ (&^ text^ id^)))])
+  (:: Lux/Monad (wrap (@list (` (@list (~@ (map (: (-> (, Text AST) AST)
+                                                   (lambda [[key val]]
+                                                     (` [(~ (ast;text key)) (~ val)])))
+                                                headers))))))))
+
+## [Values]
+(def empty-response-body (String::getBytes [] ""))
+
+(def #export (add-header name value headers)
+  (-> Text Text HttpHeaders HttpHeaders)
+  (#;Cons [name value] headers))
+
+(do-template [<name> <type> <content-type>]
+  [(def #export (<name> value)
+     (-> <type> HttpResponse)
+     (let [value-bytes (String::getBytes [] value)]
+       {#response-status 200
+        #response-headers (|> empty-headers
+                              (add-header "Content-Length" (i:show (array-length value-bytes)))
+                              (add-header "Content-Type" <content-type>))
+        #response-body value-bytes}))]
+
+  [html-response &html;Html "text/html"]
+  [css-response  &css;CSS   "text/css"]
+  )
+
+(def #export (redirect to)
+  (-> URL HttpResponse)
+  {#response-status 307
+   #response-headers (|> empty-headers
+                         (add-header "Content-Length" "0")
+                         (add-header "Content-Type" "text/html")
+                         (add-header "Location" to))
+   #response-body empty-response-body})
+
+(def #export (HttpMethod$ name)
+  (-> Text (Maybe HttpMethod))
+  (case name
+    "GET"     (#;Some #GET)
+    "POST"    (#;Some #POST)
+    "PUT"     (#;Some #PUT)
+    "DELETE"  (#;Some #DELETE)
+    "HEAD"    (#;Some #HEAD)
+    "PATCH"   (#;Some #PATCH)
+    "CONNECT" (#;Some #CONNECT)
+    "TRACE"   (#;Some #TRACE)
+    "OPTIONS" (#;Some #OPTIONS)
+    _         #;None))
+
+(def #export (param-exists? name)
+  (-> Text HttpParams Bool)
+  (any? (lambda [[k v]] (text:= name k))))
+
+(do-template [<name> <type>]
+  [(def #export (<name> name)
+     (-> Text <type> (Maybe Text))
+     (some (lambda [[k v]]
+             (if (text:= name k)
+               (#;Some v)
+               #;None))))]
+
+  [get-header HttpHeaders]
+  [get-param  HttpParams]
+  )

@@ -177,19 +177,3 @@
     [vertx (Vertx::vertx [])]
     (Vertx::deployVerticle [(verticle$ port handler vertx)]
                            vertx)))
-
-(def #export (param-exists? name)
-  (-> Text &;HttpParams Bool)
-  (any? (lambda [[k v]] (text:= name k))))
-
-(do-template [<name> <type>]
-  [(def #export (<name> name)
-     (-> Text <type> (Maybe Text))
-     (some (lambda [[k v]]
-             (if (text:= name k)
-               (#;Some v)
-               #;None))))]
-
-  [get-header &;HttpHeaders]
-  [get-param  &;HttpParams]
-  )

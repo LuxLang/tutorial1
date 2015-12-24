@@ -1,0 +1,64 @@
+##  Copyright (c) Eduardo Julian. All rights reserved.
+##  This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+##  If a copy of the MPL was not distributed with this file,
+##  You can obtain one at http://mozilla.org/MPL/2.0/.
+
+(;import lux
+         (lux (data (text #open ("text:" Text/Monoid))
+                    (list #refer #all #open ("" List/Functor List/Fold)))
+              (meta lux
+                    syntax
+                    (ast #as ast))
+              (control (monad #as M))))
+
+## [Types]
+(deftype #export Selector
+  Text)
+
+(deftype #export Style
+  (List (, Text Text)))
+
+(deftype #export Rule Text)
+
+(deftype #export RuleSet (List Rule))
+
+(deftype #export CSS Text)
+
+## [Syntax]
+(defsyntax #export (@style [attrs (record^ (*^ (&^ text^ id^)))])
+  (:: Lux/Monad (wrap (@list (` (@list (~@ (map (: (-> (, Text AST) AST)
+                                                   (lambda [[key val]]
+                                                     (` [(~ (ast;text key)) (~ val)])))
+                                                attrs))))))))
+
+## [Functions]
+(def (concat-with sep elems)
+  (-> Text (List Text) Text)
+  (|> elems
+      (interpose sep)
+      (foldL text:++ "")))
+
+(def (style->text style)
+  (-> Style Text)
+  (|> style
+      (map (lambda [[key val]] ($ text:++ key ": " val)))
+      (concat-with "; ")))
+
+(def #export (rule' selector style children)
+  (-> Selector Style RuleSet RuleSet)
+  (let [selector-prefix (text:++ selector " ")]
+    (@list& ($ text:++ selector-prefix "{" (style->text style) "}")
+            (map (text:++ selector-prefix) children))))
+
+(defsyntax #export (rule [selector text^] style [children (*^ id^)])
+  (let [style' (case style
+                 [_ (#;RecordS _)]
+                 (` (@style (~ style)))
+
+                 _
+                 style)]
+    (:: Lux/Monad (wrap (@list (` (rule' (~ (ast;text selector)) (~ style') ((get@ #M;join List/Monad) (@list (~@ children))))))))))
+
+(def #export (css rules)
+  (-> RuleSet CSS)
+  (concat-with "\n" rules))

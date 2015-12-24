@@ -13,7 +13,8 @@
               (meta lux
                     (ast #as ast)
                     syntax))
-         (.. (html #as &html)))
+         (.. (html #as &html)
+             (css #as &css)))
 
 ## [Types]
 (deftype #export HttpMethod
@@ -95,6 +96,15 @@
                            (add-header "Content-Length" (i:show (array-length body-bytes)))
                            (add-header "Content-Type" "text/html"))
      #response-body body-bytes}))
+
+(def #export (css-response css)
+  (-> &css;CSS HttpResponse)
+  (let [css-bytes (String::getBytes [] css)]
+    {#response-status 200
+     #response-headers (|> empty-headers
+                           (add-header "Content-Length" (i:show (array-length css-bytes)))
+                           (add-header "Content-Type" "text/css"))
+     #response-body css-bytes}))
 
 (def #export (redirect to)
   (-> URL HttpResponse)

@@ -11,7 +11,7 @@
                                              "list:" List/Monoid))
                     maybe
                     number
-                    (text #open ("text:" Text/Eq Text/Monoid)))
+                    (text #as text #open ("text:" Text/Eq Text/Monoid)))
               (host jvm
                     io))
          (.. (core #as &)))
@@ -122,19 +122,15 @@
 
 (def (request$ req body)
   (-> HttpServerRequest &;HttpBody &;HttpRequest)
-  (exec (run-io (print-line
-                 (|> req
-                     (HttpServerRequest::headers [])
-                     (MultiMap::names [])
-                     (Iterable::iterator [])
-                     iterator->list
-                     (interpose " ")
-                     (foldL text:++ ""))))
-    {#&;request-method (|> req (HttpServerRequest::method []) (Object::toString []) &;HttpMethod$ (? #&;OPTIONS))
-     #&;request-uri    (HttpServerRequest::uri [] req)
-     #&;request-headers  (get-headers req)
-     #&;request-params (get-params req)
-     #&;request-body   body}))
+  {#&;request-method (|> req (HttpServerRequest::method []) (Object::toString []) &;HttpMethod$ (? #&;OPTIONS))
+   #&;request-uri    (let [raw-uri (HttpServerRequest::uri [] req)]
+                       (? raw-uri
+                          (do Maybe/Monad
+                            [[uri params] (text;split-with "?" raw-uri)]
+                            (wrap uri))))
+   #&;request-headers  (get-headers req)
+   #&;request-params (get-params req)
+   #&;request-body   body})
 
 (def (body-handler k)
   (-> (-> Buffer (IO (,))) (Handler Buffer))

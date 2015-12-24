@@ -7,9 +7,12 @@
          (lux (codata io)
               (data maybe
                     (text #as t)
-                    list
+                    (list #refer #all #open ("" List/Functor))
                     (number #open ("i:" Int/Show)))
-              (host jvm))
+              (host jvm)
+              (meta lux
+                    (ast #as ast)
+                    syntax))
          (.. (html #as &html)))
 
 ## [Types]

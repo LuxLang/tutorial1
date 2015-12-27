@@ -65,7 +65,6 @@
                       attrs)]
          (:: Lux/Monad (wrap (@list (` (<fun-name> (~ attrs') (@list (~@ children))))))))))]
 
-  [html]
   ## Head
   [head]
   [meta]

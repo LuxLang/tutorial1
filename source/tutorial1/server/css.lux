@@ -18,9 +18,9 @@
 (deftype #export Style
   (List (, Text Text)))
 
-(deftype #export Rule Text)
+(deftype #export CssRule Text)
 
-(deftype #export RuleSet (List Rule))
+(deftype #export RuleSet (List CssRule))
 
 (deftype #export CSS Text)
 
@@ -64,6 +64,6 @@
                  style)]
     (:: Lux/Monad (wrap (@list (` (rule' (~ selector) (~ style') ((get@ #M;join List/Monad) (@list (~@ children))))))))))
 
-(def #export (css rules)
+(def #export (@css rules)
   (-> RuleSet CSS)
   (concat-with "\n" rules))

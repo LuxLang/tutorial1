@@ -43,7 +43,7 @@
 ## [Values]
 (def #export css
   &css;CSS
-  (&css;css
+  (&css;@css
    (list:join
     (@list (&css;rule "body"
                       {"font" "14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
@@ -227,14 +227,14 @@
 
 (def #export (page$ content)
   (-> &html;Html &html;Html)
-  (&html;html {}
-              (&html;head {}
-                          (&html;title {} &util;page-title)
-                          (&html;link {"rel" "stylesheet"
-                                       "type" "text/css"
-                                       "href" &util;css-path}))
-              (&html;body {}
-                          content)))
+  (&html;node "html" (&html;@attrs {})
+              (@list (&html;head {}
+                                 (&html;title {} &util;page-title)
+                                 (&html;link {"rel" "stylesheet"
+                                              "type" "text/css"
+                                              "href" &util;css-path}))
+                     (&html;body {}
+                                 content))))
 
 (def #export (filter-tasks display-filter tasks)
   (-> DisplayFilter &state;AppData &state;AppData)

@@ -12,7 +12,8 @@
                     number
                     (text #as text #open ("text:" Text/Eq Text/Monoid)))
               (host jvm
-                    io))
+                    io)
+              (concurrency async))
          (.. (core #as &)))
 
 ## [Host]
@@ -99,7 +100,7 @@
   (list:++ (get-query-params req) (get-form-params req)))
 
 (def (respond! response request)
-  (-> &;HttpResponse HttpServerRequest (IO (,)))
+  (-> &;HttpResponse HttpServerRequest (IO Unit))
   (do IO/Monad
     [#let [(\slots [#&;response-status #&;response-headers #&;response-body]) response]
      $response (HttpServerRequest::response [] request)
@@ -132,11 +133,12 @@
    #&;request-body   body})
 
 (def (body-handler k)
-  (-> (-> Buffer (IO (,))) (Handler Buffer))
+  (-> (-> Buffer (Async Unit)) (Handler Buffer))
   (object [(io.vertx.core.Handler io.vertx.core.buffer.Buffer)]
     []
     (#override (io.vertx.core.Handler A) handle [] [(body A)] void
-               (run-io (k body)))
+               (exec (k body)
+                 []))
     ))
 
 (def (http-handler server)
@@ -148,12 +150,13 @@
                          (HttpServerRequest::setExpectMultipart [true])
                          (HttpServerRequest::bodyHandler
                           [(body-handler (lambda [body']
-                                           (let [body (Buffer::getBytes [] body')]
-                                             (do IO/Monad
-                                               [#let [request (request$ vreq body)]
-                                                response (server request)]
-                                               (respond! response vreq)
-                                               ))))]))
+                                           (do Async/Monad
+                                             [#let [body (Buffer::getBytes [] body')
+                                                    request (request$ vreq body)]
+                                              response (server request)
+                                              _ (future (respond! response vreq))]
+                                             (wrap [])
+                                             )))]))
                  []))))
 
 (def (verticle$ port server-fun vertx)

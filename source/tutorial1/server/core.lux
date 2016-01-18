@@ -12,7 +12,8 @@
               (host jvm)
               (meta lux
                     (ast #as ast)
-                    syntax))
+                    syntax)
+              (concurrency async))
          (.. (html #as &html)
              (css #as &css)))
 
@@ -66,7 +67,7 @@
      #response-body    HttpBody))
 
 (deftype #export RequestHandler
-  (-> HttpRequest (IO HttpResponse)))
+  (-> HttpRequest (Async HttpResponse)))
 
 ## [Values]
 (def #export empty-headers

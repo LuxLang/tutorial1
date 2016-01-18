@@ -15,15 +15,14 @@
                     tuple)
               (codata io)
               (host jvm
-                    io))
+                    io)
+              (concurrency async))
          (. (core #as &&)
             (state #as &&state)
             (util #as &&util)
             (ui #as &&ui)
             (server (core #as &&server)
-                    (host #as &&server-host)))
-         (lux/concurrency async
-                          (frp #as frp)))
+                    (host #as &&server-host))))
 
 ## [Program]
 (def (handler state req)
@@ -31,61 +30,61 @@
   (let [(\slots [#&&server;request-method #&&server;request-uri #&&server;request-headers #&&server;request-params #&&server;request-body]) req]
     (case request-uri
       (\~ (~ &&util;css-path))
-      (:: IO/Monad (wrap (&&server;css-response &&ui;css)))
+      (:: Async/Monad (wrap (&&server;css-response &&ui;css)))
       
       _
-      (do IO/Monad
+      (do Async/Monad
         [#let [referer (? &&util;default-referer
                           (&&server;get-header "Referer" request-headers))
                same-url? (text:= (text:++ &&util;default-host request-uri) referer)]
-         [succeded? refer?] (: (IO (, Bool Bool))
+         [succeded? refer?] (: (Async (, Bool Bool))
                                (? (wrap [(i:= 0 (size request-params)) false])
-                                  (: (Maybe (IO (, Bool Bool)))
+                                  (: (Maybe (Async (, Bool Bool)))
                                      (case request-uri
                                        (\~ (~ &&util;toggle-path))
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
                                           id (:: Int/Read (read id'))]
-                                         (wrap (do IO/Monad
-                                                 [success (&&state;do-task id state)]
+                                         (wrap (do Async/Monad
+                                                 [success (future (&&state;do-task id state))]
                                                  (wrap [success true]))))
                                        
                                        (\~ (~ &&util;delete-path))
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
                                           id (:: Int/Read (read id'))]
-                                         (wrap (do IO/Monad
-                                                 [success (&&state;delete-task id state)]
+                                         (wrap (do Async/Monad
+                                                 [success (future (&&state;delete-task id state))]
                                                  (wrap [success true]))))
 
                                        (\~ (~ &&util;clear-completed-path))
                                        (do Maybe/Monad
                                          []
-                                         (wrap (do IO/Monad
-                                                 [success (&&state;clear-completed state)]
+                                         (wrap (do Async/Monad
+                                                 [success (future (&&state;clear-completed state))]
                                                  (wrap [success true]))))
                                        
                                        _
                                        (do Maybe/Monad
                                          [task-desc (&&server;get-param "todo" request-params)]
                                          (if (text:= "" task-desc)
-                                           (wrap (:: IO/Monad (wrap [true true])))
-                                           (wrap (do IO/Monad
+                                           (wrap (:: Async/Monad (wrap [true true])))
+                                           (wrap (do Async/Monad
                                                    [success (if same-url?
-                                                              (&&state;add-task task-desc state)
+                                                              (future (&&state;add-task task-desc state))
                                                               (wrap true))]
                                                    (wrap [success true]))))
                                          )))))
-         show-clear-completed? (&&ui;show-clear-completed? state)
-         tasks (&&state;get-task-list state)
+         show-clear-completed? (future (&&ui;show-clear-completed? state))
+         tasks (: (Async &&state;AppData) (future (&&state;get-task-list state)))
          #let [tasks-left (|> tasks (filter (. &&state;active-task? second)) size)
                display-filter (case request-uri
                                 (\~ (~ &&util;all-path))       #&&ui;All
                                 (\~ (~ &&util;active-path))    #&&ui;Active
                                 (\~ (~ &&util;completed-path)) #&&ui;Completed
                                 _                              #&&ui;All)
-               tasks-to-show (&&ui;filter-tasks display-filter tasks)]
-         #let [output-page (&&ui;page$ (&&ui;todo$ show-clear-completed? tasks-left display-filter tasks-to-show))]]
+               tasks-to-show (&&ui;filter-tasks display-filter tasks)
+               output-page (&&ui;page$ (&&ui;todo$ show-clear-completed? tasks-left display-filter tasks-to-show))]]
         (wrap (if (and refer?
                        (not same-url?))
                 (&&server;redirect referer)

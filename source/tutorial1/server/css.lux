@@ -30,11 +30,11 @@
   (record^ (*^ (&^ text^ id^))))
 
 (defsyntax #export (@style [style style^])
-  (:: Lux/Monad (wrap (@list (` (: Style
-                                   (@list (~@ (map (: (-> (, Text AST) AST)
-                                                      (lambda [[key val]]
-                                                        (` [(~ (ast;text key)) (~ val)])))
-                                                   style)))))))))
+  (:: Lux/Monad (wrap (list (` (: Style
+                                  (list (~@ (map (: (-> (, Text AST) AST)
+                                                    (lambda [[key val]]
+                                                      (` [(~ (ast;text key)) (~ val)])))
+                                                 style)))))))))
 
 ## [Functions]
 (def (concat-with sep elems)
@@ -52,8 +52,8 @@
 (def #export (rule' selector style children)
   (-> Selector Style RuleSet RuleSet)
   (let [selector-prefix (text:++ selector " ")]
-    (@list& ($ text:++ selector-prefix "{" (style->text style) "}")
-            (map (text:++ selector-prefix) children))))
+    (list& ($ text:++ selector-prefix "{" (style->text style) "}")
+           (map (text:++ selector-prefix) children))))
 
 (defsyntax #export (rule [selector id^] style [children (*^ id^)])
   (let [style' (case style
@@ -62,7 +62,7 @@
 
                  _
                  style)]
-    (:: Lux/Monad (wrap (@list (` (rule' (~ selector) (~ style') ((get@ #M;join List/Monad) (@list (~@ children))))))))))
+    (:: Lux/Monad (wrap (list (` (rule' (~ selector) (~ style') ((get@ #M;join List/Monad) (list (~@ children))))))))))
 
 (def #export (@css rules)
   (-> RuleSet CSS)

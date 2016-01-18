@@ -5,7 +5,6 @@
 
 (;import lux
          (lux (control monad
-                       enum
                        eq)
               (data maybe
                     (number #refer #all #open ("i:" Int/Ord Int/Show))
@@ -28,7 +27,7 @@
   (size [] [] int))
 
 (jvm-import (java.util.concurrent.CopyOnWriteArrayList e)
-  (<init> [] []))
+  (new [] []))
 
 ## [Types]
 (deftype #export AppState
@@ -40,7 +39,7 @@
 ## [Values]
 (def #export gen-state
   (IO AppState)
-  (@io (CopyOnWriteArrayList::<init> [])))
+  (io (CopyOnWriteArrayList::new [])))
 
 (do-template [<name> <filter> <post>]
   [(def #export (<filter> task)
@@ -60,7 +59,7 @@
 (def #export (get-task-list state)
   (-> AppState (IO AppData))
   (:: IO/Monad (wrap (map (lambda [idx] [idx (java.util.List::get [(_jvm_l2i idx)] state)])
-                          (range Int/Enum 0 (dec (_jvm_i2l (java.util.List::size [] state))))))))
+                          (range 0 (dec (_jvm_i2l (java.util.List::size [] state))))))))
 
 (def #export (add-task task-desc state)
   (-> Text AppState (IO Bool))

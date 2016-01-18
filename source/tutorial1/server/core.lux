@@ -71,14 +71,14 @@
 ## [Values]
 (def #export empty-headers
   HttpHeaders
-  (@list))
+  (list))
 
 ## [Syntax]
 (defsyntax #export (@headers [headers (record^ (*^ (&^ text^ id^)))])
-  (:: Lux/Monad (wrap (@list (` (@list (~@ (map (: (-> (, Text AST) AST)
-                                                   (lambda [[key val]]
-                                                     (` [(~ (ast;text key)) (~ val)])))
-                                                headers))))))))
+  (:: Lux/Monad (wrap (list (` (list (~@ (map (: (-> (, Text AST) AST)
+                                                 (lambda [[key val]]
+                                                   (` [(~ (ast;text key)) (~ val)])))
+                                              headers))))))))
 
 ## [Values]
 (def empty-response-body (String::getBytes [] ""))

@@ -5,7 +5,6 @@
 
 (;import lux
          (lux (control monad
-                       enum
                        eq)
               (data maybe
                     (number #refer #all #open ("i:" Int/Ord Int/Show))
@@ -45,107 +44,107 @@
   &css;CSS
   (&css;@css
    (list:join
-    (@list (&css;rule "body"
-                      {"font" "14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
-                       "line-height" "1.4em"
-                       "background" "#f5f5f5"
-                       "color" "#4d4d4d"
-                       "min-width" "230px"
-                       "max-width" "550px"
-                       "margin" "0 auto"
-                       "-webkit-font-smoothing" "antialiased"
-                       "-moz-font-smoothing" "antialiased"
-                       "font-smoothing" "antialiased"
-                       "font-weight" "300"})
-           (&css;rule ".todo"
-                      {"background" "#fff"
-                       "margin" "130px 0 40px 0"
-                       "position" "relative"
-                       "box-shadow" "0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 25px 50px 0 rgba(0, 0, 0, 0.1)"}
-                      (&css;rule "> .header"
-                                 {"display" "block"}
-                                 (&css;rule "> .new-task-form"
-                                            {"display" "block"
-                                             "margin-top" "0em"}
-                                            (&css;rule "> .new-task-input"
-                                                       {"padding" "16px 16px 16px 60px"
-                                                        "border" "none"
-                                                        "width" "85%"
-                                                        "background" "rgba(0, 0, 0, 0.003)"
-                                                        }
-                                                       )
-                                            (&css;rule "> .new-task-submit"
-                                                       {"background-color" "inherit"
-                                                        "border" "none"
-                                                        "font-weight" "bold"
-                                                        "font-size" "1.25em"
-                                                        "cursor" "pointer"}
-                                                       ))
-                                 )
-                      (&css;rule "> .task-list"
-                                 {"border-top" "1px solid #e6e6e6"
-                                  "margin" "0"
-                                  "padding" "0"}
-                                 (&css;rule "> .task"
-                                            {"position" "relative"
-                                             "font-size" "24px"
-                                             "border-bottom" "1px solid #ededed"}
-                                            (&css;rule "> .completed-toggle"
-                                                       {"color" "#ededed"
-                                                        "text-decoration" "none"})
-                                            (&css;rule "> .task-description"
-                                                       {"white-space" "pre-line"
-                                                        "word-break" "break-all"
-                                                        "line-height" "1.2"})
-                                            (&css;rule "> .delete-button"
-                                                       {"color" "#af5b5e"
-                                                        "text-decoration" "none"
-                                                        "float" "right"
-                                                        "margin-top" "0.125em"
-                                                        "margin-right" "0.5em"
-                                                        }))
-                                 (&css;rule "> .task.completed"
-                                            {}
-                                            (&css;rule "> .completed-toggle"
-                                                       {"color" "#bddad5"})
-                                            (&css;rule "> .task-description"
-                                                       {"color" "#d9d9d9"
-                                                        "text-decoration" "line-through"})
-                                            ))
-                      (&css;rule "> .footer"
-                                 {"color" "#777"
-                                  "padding" "10px 15px"
-                                  "height" "20px"
-                                  "text-align" "center"
-                                  "border-top" "1px solid #e6e6e6"}
-                                 (&css;rule "> .tasks-left"
-                                            {"float" "left"
-                                             "text-align" "left"})
-                                 (&css;rule "> .filters"
-                                            {"margin" "0"
-                                             "padding" "0"
-                                             "position" "absolute"
-                                             "right" "0"
-                                             "left" "0"}
-                                            (&css;rule "> .filter"
-                                                       {"color" "inherit"
-                                                        "margin" "3px"
-                                                        "padding" "3px 7px"
-                                                        "text-decoration" "none"
-                                                        "border" "1px solid transparent"
-                                                        "border-radius" "3px"})
-                                            (&css;rule "> .filter.active"
-                                                       {"border-color" "rgba(175, 47, 47, 0.2)"}))
-                                 (&css;rule "> .clear-completed"
-                                            {"float" "right"
-                                             "position" "relative"
-                                             "line-height" "20px"
-                                             "text-decoration" "none"
-                                             "cursor" "pointer"
-                                             "position" "relative"
-                                             "color" "inherit"}))
-                      )
-           ))))
+    (list (&css;rule "body"
+                     {"font" "14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
+                      "line-height" "1.4em"
+                      "background" "#f5f5f5"
+                      "color" "#4d4d4d"
+                      "min-width" "230px"
+                      "max-width" "550px"
+                      "margin" "0 auto"
+                      "-webkit-font-smoothing" "antialiased"
+                      "-moz-font-smoothing" "antialiased"
+                      "font-smoothing" "antialiased"
+                      "font-weight" "300"})
+          (&css;rule ".todo"
+                     {"background" "#fff"
+                      "margin" "130px 0 40px 0"
+                      "position" "relative"
+                      "box-shadow" "0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 25px 50px 0 rgba(0, 0, 0, 0.1)"}
+                     (&css;rule "> .header"
+                                {"display" "block"}
+                                (&css;rule "> .new-task-form"
+                                           {"display" "block"
+                                            "margin-top" "0em"}
+                                           (&css;rule "> .new-task-input"
+                                                      {"padding" "16px 16px 16px 60px"
+                                                       "border" "none"
+                                                       "width" "85%"
+                                                       "background" "rgba(0, 0, 0, 0.003)"
+                                                       }
+                                                      )
+                                           (&css;rule "> .new-task-submit"
+                                                      {"background-color" "inherit"
+                                                       "border" "none"
+                                                       "font-weight" "bold"
+                                                       "font-size" "1.25em"
+                                                       "cursor" "pointer"}
+                                                      ))
+                                )
+                     (&css;rule "> .task-list"
+                                {"border-top" "1px solid #e6e6e6"
+                                 "margin" "0"
+                                 "padding" "0"}
+                                (&css;rule "> .task"
+                                           {"position" "relative"
+                                            "font-size" "24px"
+                                            "border-bottom" "1px solid #ededed"}
+                                           (&css;rule "> .completed-toggle"
+                                                      {"color" "#ededed"
+                                                       "text-decoration" "none"})
+                                           (&css;rule "> .task-description"
+                                                      {"white-space" "pre-line"
+                                                       "word-break" "break-all"
+                                                       "line-height" "1.2"})
+                                           (&css;rule "> .delete-button"
+                                                      {"color" "#af5b5e"
+                                                       "text-decoration" "none"
+                                                       "float" "right"
+                                                       "margin-top" "0.125em"
+                                                       "margin-right" "0.5em"
+                                                       }))
+                                (&css;rule "> .task.completed"
+                                           {}
+                                           (&css;rule "> .completed-toggle"
+                                                      {"color" "#bddad5"})
+                                           (&css;rule "> .task-description"
+                                                      {"color" "#d9d9d9"
+                                                       "text-decoration" "line-through"})
+                                           ))
+                     (&css;rule "> .footer"
+                                {"color" "#777"
+                                 "padding" "10px 15px"
+                                 "height" "20px"
+                                 "text-align" "center"
+                                 "border-top" "1px solid #e6e6e6"}
+                                (&css;rule "> .tasks-left"
+                                           {"float" "left"
+                                            "text-align" "left"})
+                                (&css;rule "> .filters"
+                                           {"margin" "0"
+                                            "padding" "0"
+                                            "position" "absolute"
+                                            "right" "0"
+                                            "left" "0"}
+                                           (&css;rule "> .filter"
+                                                      {"color" "inherit"
+                                                       "margin" "3px"
+                                                       "padding" "3px 7px"
+                                                       "text-decoration" "none"
+                                                       "border" "1px solid transparent"
+                                                       "border-radius" "3px"})
+                                           (&css;rule "> .filter.active"
+                                                      {"border-color" "rgba(175, 47, 47, 0.2)"}))
+                                (&css;rule "> .clear-completed"
+                                           {"float" "right"
+                                            "position" "relative"
+                                            "line-height" "20px"
+                                            "text-decoration" "none"
+                                            "cursor" "pointer"
+                                            "position" "relative"
+                                            "color" "inherit"}))
+                     )
+          ))))
 
 (def (task-button$ path css-class label idx)
   (-> Text Text Text Int &html;Html)
@@ -228,13 +227,13 @@
 (def #export (page$ content)
   (-> &html;Html &html;Html)
   (&html;node "html" (&html;@attrs {})
-              (@list (&html;head {}
-                                 (&html;title {} &util;page-title)
-                                 (&html;link {"rel" "stylesheet"
-                                              "type" "text/css"
-                                              "href" &util;css-path}))
-                     (&html;body {}
-                                 content))))
+              (list (&html;head {}
+                                (&html;title {} &util;page-title)
+                                (&html;link {"rel" "stylesheet"
+                                             "type" "text/css"
+                                             "href" &util;css-path}))
+                    (&html;body {}
+                                content))))
 
 (def #export (filter-tasks display-filter tasks)
   (-> DisplayFilter &state;AppData &state;AppData)

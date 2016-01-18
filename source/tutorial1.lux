@@ -5,7 +5,6 @@
 
 (;import lux
          (lux (control monad
-                       enum
                        eq)
               (data maybe
                     (number #refer #all #open ("i:" Int/Ord Int/Show))
@@ -22,7 +21,9 @@
             (util #as &&util)
             (ui #as &&ui)
             (server (core #as &&server)
-                    (host #as &&server-host))))
+                    (host #as &&server-host)))
+         (lux/concurrency async
+                          (frp #as frp)))
 
 ## [Program]
 (def (handler state req)

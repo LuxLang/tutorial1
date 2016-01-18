@@ -4,8 +4,7 @@
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
 (;import lux
-         (lux (control monad
-                       enum)
+         (lux (control monad)
               (codata io)
               (data (list #refer #all #open ("" List/Functor List/Fold
                                              "list:" List/Monoid))
@@ -88,7 +87,7 @@
      (-> HttpServerRequest <type>)
      (let [entries (|> req (<method> []) (MultiMap::entries []))]
        (map (extract-param entries)
-            (range Int/Enum 0 (dec (_jvm_i2l (java.util.List::size [] entries)))))))]
+            (range 0 (dec (_jvm_i2l (java.util.List::size [] entries)))))))]
 
   [get-headers      HttpServerRequest::headers        &;HttpHeaders]
   [get-query-params HttpServerRequest::params         &;HttpParams]
@@ -134,7 +133,7 @@
 
 (def (body-handler k)
   (-> (-> Buffer (IO (,))) (Handler Buffer))
-  (object java.lang.Object [(io.vertx.core.Handler io.vertx.core.buffer.Buffer)]
+  (object [(io.vertx.core.Handler io.vertx.core.buffer.Buffer)]
     []
     (#override (io.vertx.core.Handler A) handle [] [(body A)] void
                (run-io (k body)))
@@ -142,7 +141,7 @@
 
 (def (http-handler server)
   (-> &;RequestHandler (Handler HttpServerRequest))
-  (object java.lang.Object [(io.vertx.core.Handler io.vertx.core.http.HttpServerRequest)]
+  (object [(io.vertx.core.Handler io.vertx.core.http.HttpServerRequest)]
     []
     (#override (io.vertx.core.Handler A) handle [] [(vreq A)] void
                (exec (|> vreq

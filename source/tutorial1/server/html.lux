@@ -22,17 +22,17 @@
   (record^ (*^ (&^ text^ id^))))
 
 (defsyntax #export (@attrs [attrs attributes^])
-  (:: Lux/Monad (wrap (@list (` (: Attributes
-                                   (@list (~@ (map (: (-> (, Text AST) AST)
-                                                      (lambda [[key val]]
-                                                        (` [(~ (ast;text key)) (~ val)])))
-                                                   attrs)))))))))
+  (:: Lux/Monad (wrap (list (` (: Attributes
+                                  (list (~@ (map (: (-> (, Text AST) AST)
+                                                    (lambda [[key val]]
+                                                      (` [(~ (ast;text key)) (~ val)])))
+                                                 attrs)))))))))
 
 (defsyntax #export (%tag% [name local-symbol^])
-  (:: Lux/Monad (wrap (@list (ast;text name)))))
+  (:: Lux/Monad (wrap (list (ast;text name)))))
 
 (defsyntax #export (%tag-func-name% [name local-symbol^])
-  (:: Lux/Monad (wrap (@list (ast;symbol ["" (text:++ name "'")])))))
+  (:: Lux/Monad (wrap (list (ast;symbol ["" (text:++ name "'")])))))
 
 ## [Functions]
 (def (concat-with sep elems)
@@ -63,7 +63,7 @@
 
                       _
                       attrs)]
-         (:: Lux/Monad (wrap (@list (` (<fun-name> (~ attrs') (@list (~@ children))))))))))]
+         (:: Lux/Monad (wrap (list (` (<fun-name> (~ attrs') (list (~@ children))))))))))]
 
   ## Head
   [head]

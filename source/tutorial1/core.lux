@@ -7,5 +7,5 @@
 
 ## [Types]
 (deftype #export Task
-  (& #completed? Bool
-     #description Text))
+  {#completed? Bool
+   #description Text})

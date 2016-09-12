@@ -24,9 +24,9 @@
 
 ## [Types]
 (deftype #export DisplayFilter
-  (| #All
-     #Active
-     #Completed))
+  #All
+  #Active
+  #Completed)
 
 ## [Structs]
 (defstruct DisplayFilter/Eq (Eq DisplayFilter)
@@ -157,7 +157,7 @@
 (def delete-label   Text "&#10060;") ## X-mark
 
 (def (task$ [task-idx task])
-  (-> (, Int &;Task) &html;Html)
+  (-> [Int &;Task] &html;Html)
   (let [(\slots [#&;completed? #&;description]) task]
     (&html;div {"class" (text:++ "task" (if completed? " completed" ""))}
                (task-button$ &util;toggle-path "completed-toggle" (if completed? done-label not-done-label) task-idx)

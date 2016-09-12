@@ -34,7 +34,7 @@
   (CopyOnWriteArrayList &;Task))
 
 (deftype #export AppData
-  (List (, Int &;Task)))
+  (List [Int &;Task]))
 
 ## [Values]
 (def #export gen-state
@@ -90,7 +90,7 @@
     [task-list (get-task-list state)
      _ (|> task-list
            reverse
-           (map% % (: (-> (, Int &;Task) (IO Bool))
+           (map% % (: (-> [Int &;Task] (IO Bool))
                       (lambda [[idx task]]
                         (if (completed-task? task)
                           (delete-task idx state)

@@ -29,7 +29,7 @@
   (-> &&state;AppState &&server;RequestHandler)
   (let [(\slots [#&&server;request-method #&&server;request-uri #&&server;request-headers #&&server;request-params #&&server;request-body]) req]
     (case request-uri
-      (\~ (~ &&util;css-path))
+      (\~ &&util;css-path)
       (:: Async/Monad (wrap (&&server;css-response &&ui;css)))
       
       _
@@ -37,11 +37,11 @@
         [#let [referer (? &&util;default-referer
                           (&&server;get-header "Referer" request-headers))
                same-url? (text:= (text:++ &&util;default-host request-uri) referer)]
-         [succeded? refer?] (: (Async (, Bool Bool))
+         [succeded? refer?] (: (Async [Bool Bool])
                                (? (wrap [(i:= 0 (size request-params)) false])
-                                  (: (Maybe (Async (, Bool Bool)))
+                                  (: (Maybe (Async [Bool Bool]))
                                      (case request-uri
-                                       (\~ (~ &&util;toggle-path))
+                                       (\~ &&util;toggle-path)
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
                                           id (:: Int/Read (read id'))]
@@ -49,7 +49,7 @@
                                                  [success (future (&&state;do-task id state))]
                                                  (wrap [success true]))))
                                        
-                                       (\~ (~ &&util;delete-path))
+                                       (\~ &&util;delete-path)
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
                                           id (:: Int/Read (read id'))]
@@ -57,7 +57,7 @@
                                                  [success (future (&&state;delete-task id state))]
                                                  (wrap [success true]))))
 
-                                       (\~ (~ &&util;clear-completed-path))
+                                       (\~ &&util;clear-completed-path)
                                        (do Maybe/Monad
                                          []
                                          (wrap (do Async/Monad
@@ -79,10 +79,10 @@
          tasks (: (Async &&state;AppData) (future (&&state;get-task-list state)))
          #let [tasks-left (|> tasks (filter (. &&state;active-task? second)) size)
                display-filter (case request-uri
-                                (\~ (~ &&util;all-path))       #&&ui;All
-                                (\~ (~ &&util;active-path))    #&&ui;Active
-                                (\~ (~ &&util;completed-path)) #&&ui;Completed
-                                _                              #&&ui;All)
+                                (\~ &&util;all-path)       #&&ui;All
+                                (\~ &&util;active-path)    #&&ui;Active
+                                (\~ &&util;completed-path) #&&ui;Completed
+                                _                          #&&ui;All)
                tasks-to-show (&&ui;filter-tasks display-filter tasks)
                output-page (&&ui;page$ (&&ui;todo$ show-clear-completed? tasks-left display-filter tasks-to-show))]]
         (wrap (if (and refer?

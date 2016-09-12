@@ -23,15 +23,15 @@
 
 ## [Types]
 (deftype #export HttpMethod
-  (| #GET
-     #POST
-     #PUT
-     #DELETE
-     #HEAD
-     #PATCH
-     #CONNECT
-     #OPTIONS
-     #TRACE))
+  #GET
+  #POST
+  #PUT
+  #DELETE
+  #HEAD
+  #PATCH
+  #CONNECT
+  #OPTIONS
+  #TRACE)
 
 (deftype #export Port
   Int)
@@ -40,10 +40,10 @@
   Int)
 
 (deftype #export HttpHeaders
-  (List (, Text Text)))
+  (List [Text Text]))
 
 (deftype #export HttpParams
-  (List (, Text Text)))
+  (List [Text Text]))
 
 (deftype #export HttpBody
   (Array (^ byte)))
@@ -55,16 +55,16 @@
   Text)
 
 (deftype #export HttpRequest
-  (& #request-method  HttpMethod
-     #request-uri     URI
-     #request-headers HttpHeaders
-     #request-params  HttpParams
-     #request-body    HttpBody))
+  {#request-method  HttpMethod
+   #request-uri     URI
+   #request-headers HttpHeaders
+   #request-params  HttpParams
+   #request-body    HttpBody})
 
 (deftype #export HttpResponse
-  (& #response-status  HttpStatus
-     #response-headers HttpHeaders
-     #response-body    HttpBody))
+  {#response-status  HttpStatus
+   #response-headers HttpHeaders
+   #response-body    HttpBody})
 
 (deftype #export RequestHandler
   (-> HttpRequest (Async HttpResponse)))
@@ -76,7 +76,7 @@
 
 ## [Syntax]
 (defsyntax #export (@headers [headers (record^ (*^ (&^ text^ id^)))])
-  (:: Lux/Monad (wrap (list (` (list (~@ (map (: (-> (, Text AST) AST)
+  (:: Lux/Monad (wrap (list (` (list (~@ (map (: (-> [Text AST] AST)
                                                  (lambda [[key val]]
                                                    (` [(~ (ast;text key)) (~ val)])))
                                               headers))))))))

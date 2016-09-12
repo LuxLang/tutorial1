@@ -14,16 +14,16 @@
 (deftype #export Html Text)
 
 (deftype #export Attributes
-  (List (, Text Text)))
+  (List [Text Text]))
 
 ## [Syntax]
 (def attributes^
-  (Parser (List (, Text AST)))
+  (Parser (List [Text AST]))
   (record^ (*^ (&^ text^ id^))))
 
 (defsyntax #export (@attrs [attrs attributes^])
   (:: Lux/Monad (wrap (list (` (: Attributes
-                                  (list (~@ (map (: (-> (, Text AST) AST)
+                                  (list (~@ (map (: (-> [Text AST] AST)
                                                     (lambda [[key val]]
                                                       (` [(~ (ast;text key)) (~ val)])))
                                                  attrs)))))))))

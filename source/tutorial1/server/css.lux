@@ -16,7 +16,7 @@
   Text)
 
 (deftype #export Style
-  (List (, Text Text)))
+  (List [Text Text]))
 
 (deftype #export CssRule Text)
 
@@ -26,12 +26,12 @@
 
 ## [Syntax]
 (def style^
-  (Parser (List (, Text AST)))
+  (Parser (List [Text AST]))
   (record^ (*^ (&^ text^ id^))))
 
 (defsyntax #export (@style [style style^])
   (:: Lux/Monad (wrap (list (` (: Style
-                                  (list (~@ (map (: (-> (, Text AST) AST)
+                                  (list (~@ (map (: (-> [Text AST] AST)
                                                     (lambda [[key val]]
                                                       (` [(~ (ast;text key)) (~ val)])))
                                                  style)))))))))

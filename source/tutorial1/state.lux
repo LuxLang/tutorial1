@@ -7,46 +7,42 @@
          (lux (control monad
                        eq)
               (data maybe
-                    (number #refer #all #open ("i:" Int/Ord Int/Show))
                     (list #refer #all #open ("" List/Functor List/Fold
                                              "list:" List/Monad))
-                    (text #open ("text:" Text/Monoid Text/Eq))
-                    (bool #open ("b:" Bool/Show))
-                    tuple)
+                    (text #open ("text:" Text/Monoid Text/Eq)))
               (codata io)
-              (host jvm
-                    io))
+              host)
          (.. (core #as &)))
 
 ## [Host]
 (jvm-import #long (java.util.List e)
-  (add [] [e] boolean #io)
+  (add [] [e] #io boolean)
   (get [] [int] e)
-  (set [] [int e] e #io)
-  (remove [] [int] e #io)
+  (set [] [int e] #io e)
+  (remove [] [int] #io e)
   (size [] [] int))
 
 (jvm-import (java.util.concurrent.CopyOnWriteArrayList e)
   (new [] []))
 
 ## [Types]
-(deftype #export AppState
+(type: #export AppState
   (CopyOnWriteArrayList &;Task))
 
-(deftype #export AppData
+(type: #export AppData
   (List [Int &;Task]))
 
 ## [Values]
-(def #export gen-state
+(def: #export gen-state
   (IO AppState)
-  (io (CopyOnWriteArrayList::new [])))
+  (io (CopyOnWriteArrayList.new [])))
 
 (do-template [<name> <filter> <post>]
-  [(def #export (<filter> task)
+  [(def: #export (<filter> task)
      (-> &;Task Bool)
      (<post> (get@ #&;completed? task)))
 
-   (def #export (<name> tasks)
+   (def: #export (<name> tasks)
      (-> AppData Int)
      (|> tasks
          (filter (lambda [[idx task]] (<filter> task)))
@@ -56,35 +52,37 @@
   [num-completed-tasks completed-task? id]
   )
 
-(def #export (get-task-list state)
+(def: #export (get-task-list state)
   (-> AppState (IO AppData))
-  (:: IO/Monad (wrap (map (lambda [idx] [idx (java.util.List::get [(_jvm_l2i idx)] state)])
-                          (range 0 (dec (_jvm_i2l (java.util.List::size [] state))))))))
+  (:: IO/Monad wrap (map (lambda [idx] [idx (java.util.List.get [(l2i idx)] state)])
+                         (range 0 (dec (i2l (java.util.List.size [] state)))))))
 
-(def #export (add-task task-desc state)
+(def: #export (add-task task-desc state)
   (-> Text AppState (IO Bool))
   (let [task {#&;completed? false
               #&;description task-desc}]
-    (java.util.List::add [task] state)))
+    (java.util.List.add [task] state)))
 
-(def #export (do-task idx state)
+(def: #export (toggle-task idx state)
   (-> Int AppState (IO Bool))
-  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
+  (if (< (i2l (java.util.List.size [] state))
+         idx)
     (do IO/Monad
-      [#let [task (java.util.List::get [(_jvm_l2i idx)] state)]
-       _ (java.util.List::set [(_jvm_l2i idx) (update@ #&;completed? not task)] state)]
+      [#let [task (java.util.List.get [(l2i idx)] state)]
+       _ (java.util.List.set [(l2i idx) (update@ #&;completed? not task)] state)]
       (wrap true))
-    (:: IO/Monad (wrap false))))
+    (:: IO/Monad wrap false)))
 
-(def #export (delete-task idx state)
+(def: #export (delete-task idx state)
   (-> Int AppState (IO Bool))
-  (if (i:< idx (_jvm_i2l (java.util.List::size [] state)))
+  (if (< (i2l (java.util.List.size [] state))
+         idx)
     (do IO/Monad
-      [_ (java.util.List::remove [(_jvm_l2i idx)] state)]
+      [_ (java.util.List.remove [(l2i idx)] state)]
       (wrap true))
-    (:: IO/Monad (wrap false))))
+    (:: IO/Monad wrap false)))
 
-(def #export (clear-completed state)
+(def: #export (clear-completed state)
   (-> AppState (IO Bool))
   (do IO/Monad
     [task-list (get-task-list state)

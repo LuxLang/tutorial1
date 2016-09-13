@@ -4,66 +4,61 @@
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
 (;import lux
-         (lux (data (text #open ("text:" Text/Monoid))
-                    (list #refer #all #open ("" List/Functor List/Fold)))
-              (meta lux
-                    syntax
-                    (ast #as ast))
+         (lux (data [text "Text/" Text/Monoid]
+                    text/format
+                    [list #* "" List/Functor List/Fold])
+              [meta]
+              (meta syntax
+                    [ast])
               (control (monad #as M))))
 
 ## [Types]
-(deftype #export Selector
+(type: #export Selector
   Text)
 
-(deftype #export Style
+(type: #export Style
   (List [Text Text]))
 
-(deftype #export CssRule Text)
+(type: #export CssRule Text)
 
-(deftype #export RuleSet (List CssRule))
+(type: #export RuleSet (List CssRule))
 
-(deftype #export CSS Text)
+(type: #export CSS Text)
 
 ## [Syntax]
-(def style^
-  (Parser (List [Text AST]))
+(def: style^
+  (Syntax (List [Text AST]))
   (record^ (*^ (&^ text^ id^))))
 
-(defsyntax #export (@style [style style^])
-  (:: Lux/Monad (wrap (list (` (: Style
-                                  (list (~@ (map (: (-> [Text AST] AST)
-                                                    (lambda [[key val]]
-                                                      (` [(~ (ast;text key)) (~ val)])))
-                                                 style)))))))))
+(syntax: #export (@style [style style^])
+  (wrap (list (` (: Style
+                    (list (~@ (map (: (-> [Text AST] AST)
+                                      (lambda [[key val]]
+                                        (` [(~ (ast;text key)) (~ val)])))
+                                   style))))))))
 
 ## [Functions]
-(def (concat-with sep elems)
-  (-> Text (List Text) Text)
-  (|> elems
-      (interpose sep)
-      (foldL text:++ "")))
-
-(def (style->text style)
+(def: (style->text style)
   (-> Style Text)
   (|> style
-      (map (lambda [[key val]] ($ text:++ key ": " val)))
-      (concat-with "; ")))
+      (map (lambda [[key val]] (<> key ": " val)))
+      (text;join-with "; ")))
 
-(def #export (rule' selector style children)
+(def: #export (rule' selector style children)
   (-> Selector Style RuleSet RuleSet)
-  (let [selector-prefix (text:++ selector " ")]
-    (list& ($ text:++ selector-prefix "{" (style->text style) "}")
-           (map (text:++ selector-prefix) children))))
+  (let [selector-prefix (Text/++ selector " ")]
+    (list& (<> selector-prefix "{" (style->text style) "}")
+           (map (Text/++ selector-prefix) children))))
 
-(defsyntax #export (rule [selector id^] style [children (*^ id^)])
+(syntax: #export (rule [selector id^] style [children (*^ id^)])
   (let [style' (case style
                  [_ (#;RecordS _)]
                  (` (@style (~ style)))
 
                  _
                  style)]
-    (:: Lux/Monad (wrap (list (` (rule' (~ selector) (~ style') ((get@ #M;join List/Monad) (list (~@ children))))))))))
+    (wrap (list (` (rule' (~ selector) (~ style') ((get@ #M;join List/Monad) (list (~@ children)))))))))
 
-(def #export (@css rules)
+(def: #export (@css rules)
   (-> RuleSet CSS)
-  (concat-with "\n" rules))
+  (text;join-with "\n" rules))

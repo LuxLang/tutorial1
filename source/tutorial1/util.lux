@@ -4,17 +4,23 @@
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
 (;import lux
-         (lux/data/text #open ("text:" Text/Monoid))
+         (lux/data/text #open ("Text/" Text/Monoid))
          (.. (server (core #as &server))))
 
 ## [Values]
-(def #export server-port &server;Port 8080)
+(def: #export server-port
+  &server;Port
+  8080)
 
-(def #export page-title Text "Lux TODO")
+(def: #export page-title
+  Text
+  "Lux TODO")
 
 ## Resource paths
 (do-template [<name> <uri>]
-  [(def #export <name> &server;URI <uri>)]
+  [(def: #export <name>
+     &server;URI
+     <uri>)]
 
   [all-path             "/"]
   [active-path          "/active"]
@@ -25,5 +31,10 @@
   [css-path             "/tutorial1.css"]
   )
 
-(def #export default-host &server;URL "http://localhost:8080")
-(def #export default-referer &server;URL (text:++ default-host all-path))
+(def: #export default-host
+  &server;URL
+  "http://localhost:8080")
+
+(def: #export default-referer
+  &server;URL
+  (Text/++ default-host all-path))

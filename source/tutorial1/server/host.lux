@@ -5,37 +5,29 @@
 
 (;import lux
          (lux (control monad)
-              (codata io)
-              (data (list #refer #all #open ("" List/Functor List/Fold
-                                             "list:" List/Monoid))
+              (codata [io #- run])
+              (data [list "" List/Functor List/Fold "List/" List/Monoid]
                     maybe
-                    number
-                    (text #as text #open ("text:" Text/Eq Text/Monoid)))
-              (host jvm
-                    io)
-              (concurrency async))
+                    [text]
+                    text/format)
+              host
+              (concurrency async)
+              [hack])
          (.. (core #as &)))
 
 ## [Host]
 (jvm-import java.lang.Object
-  (toString [] [] java.lang.String))
+  (toString [] [] String))
 
 (jvm-import io.vertx.core.Verticle)
 
 (jvm-import io.vertx.core.http.HttpMethod)
 
-(jvm-import io.vertx.core.http.HttpServer
-  (listen [] [int] io.vertx.core.http.HttpServer #io)
-  (requestHandler [] [(io.vertx.core.Handler io.vertx.core.http.HttpServerRequest)] io.vertx.core.http.HttpServer #io))
-
-(jvm-import io.vertx.core.Vertx
-  (#static vertx [] [] io.vertx.core.Vertx #io)
-  (createHttpServer [] [] io.vertx.core.http.HttpServer #io)
-  (deployVerticle   [] [io.vertx.core.Verticle] void #io))
+(jvm-import (io.vertx.core.Handler a))
 
 (jvm-import io.vertx.core.buffer.Buffer
-  (#static buffer [] [(Array byte)] io.vertx.core.buffer.Buffer)
-  (getBytes [] [] (Array byte)))
+  (#static buffer [] [ByteArray] Buffer)
+  (getBytes [] [] ByteArray))
 
 (jvm-import (java.util.Map$Entry k v)
   (getKey [] [] k)
@@ -55,75 +47,86 @@
 (jvm-import #long (java.util.Set e))
 
 (jvm-import io.vertx.core.MultiMap
-  (add [] [java.lang.String java.lang.String] io.vertx.core.MultiMap)
-  (entries [] [] (java.util.List (java.util.Map$Entry java.lang.String java.lang.String)))
-  (names [] [] (java.util.Set java.lang.String)))
-
-(jvm-import io.vertx.core.http.HttpServerRequest
-  (method [] [] io.vertx.core.http.HttpMethod)
-  (uri [] [] java.lang.String)
-  (headers [] [] io.vertx.core.MultiMap)
-  (params [] [] io.vertx.core.MultiMap)
-  (formAttributes [] [] io.vertx.core.MultiMap)
-  (response [] [] io.vertx.core.http.HttpServerResponse #io)
-  (bodyHandler [] [(io.vertx.core.Handler io.vertx.core.buffer.Buffer)] io.vertx.core.http.HttpServerRequest)
-  (setExpectMultipart [] [boolean] io.vertx.core.http.HttpServerRequest))
+  (add [] [String String] MultiMap)
+  (entries [] [] (java.util.List (Map$Entry String String)))
+  (names [] [] (java.util.Set String)))
 
 (jvm-import io.vertx.core.http.HttpServerResponse
-  (headers [] [] io.vertx.core.MultiMap)
-  (setStatusCode [] [int] io.vertx.core.http.HttpServerResponse)
-  (write [] [io.vertx.core.buffer.Buffer] io.vertx.core.http.HttpServerResponse)
+  (headers [] [] MultiMap)
+  (setStatusCode [] [int] HttpServerResponse)
+  (write [] [Buffer] HttpServerResponse)
   (end [] [] void))
 
-(jvm-import (io.vertx.core.Handler a))
+(jvm-import io.vertx.core.http.HttpServerRequest
+  (method [] [] HttpMethod)
+  (uri [] [] String)
+  (headers [] [] MultiMap)
+  (params [] [] MultiMap)
+  (formAttributes [] [] MultiMap)
+  (response [] [] #io HttpServerResponse)
+  (bodyHandler [] [(Handler Buffer)] HttpServerRequest)
+  (setExpectMultipart [] [boolean] HttpServerRequest))
+
+(jvm-import io.vertx.core.http.HttpServer
+  (listen [] [int] #io HttpServer)
+  (requestHandler [] [(Handler HttpServerRequest)] #io HttpServer))
+
+(jvm-import io.vertx.core.Vertx
+  (#static vertx [] [] #io Vertx)
+  (createHttpServer [] [] #io HttpServer)
+  (deployVerticle   [] [Verticle] #io void))
+
+(jvm-import io.vertx.core.Future)
+
+(jvm-import io.vertx.core.AbstractVerticle)
 
 ## [Functions]
-(def (extract-param entries idx)
+(def: (extract-param entries idx)
   (-> (java.util.List (Map$Entry Text Text)) Int [Text Text])
-  (let [entry (java.util.List::get [(_jvm_l2i idx)] entries)]
-    [(Map$Entry::getKey [] entry) (Map$Entry::getValue [] entry)]))
+  (let [entry (java.util.List.get [(l2i idx)] entries)]
+    [(Map$Entry.getKey [] entry) (Map$Entry.getValue [] entry)]))
 
 (do-template [<name> <method> <type>]
-  [(def (<name> req)
+  [(def: (<name> req)
      (-> HttpServerRequest <type>)
-     (let [entries (|> req (<method> []) (MultiMap::entries []))]
+     (let [entries (|> req (<method> []) (MultiMap.entries []))]
        (map (extract-param entries)
-            (range 0 (dec (_jvm_i2l (java.util.List::size [] entries)))))))]
+            (list;range 0 (dec (i2l (java.util.List.size [] entries)))))))]
 
-  [get-headers      HttpServerRequest::headers        &;HttpHeaders]
-  [get-query-params HttpServerRequest::params         &;HttpParams]
-  [get-form-params  HttpServerRequest::formAttributes &;HttpParams]
+  [get-headers      HttpServerRequest.headers        &;HttpHeaders]
+  [get-query-params HttpServerRequest.params         &;HttpParams]
+  [get-form-params  HttpServerRequest.formAttributes &;HttpParams]
   )
 
-(def (get-params req)
+(def: (get-params req)
   (-> HttpServerRequest &;HttpParams)
-  (list:++ (get-query-params req) (get-form-params req)))
+  (List/++ (get-query-params req) (get-form-params req)))
 
-(def (respond! response request)
+(def: (respond! response request)
   (-> &;HttpResponse HttpServerRequest (IO Unit))
   (do IO/Monad
     [#let [(\slots [#&;response-status #&;response-headers #&;response-body]) response]
-     $response (HttpServerRequest::response [] request)
-     #let [_ (HttpServerResponse::setStatusCode [(_jvm_l2i response-status)] $response)
-           mm (foldL (: (-> MultiMap [Text Text] MultiMap)
-                        (lambda [headers pair] (MultiMap::add pair headers)))
-                     (HttpServerResponse::headers [] $response)
-                     response-headers)
-           _ (HttpServerResponse::write [(Buffer::buffer [response-body])] $response)
-           _ (HttpServerResponse::end [] $response)]]
+     $response (HttpServerRequest.response [] request)
+     #let [_ (HttpServerResponse.setStatusCode [(l2i response-status)] $response)
+           mm (fold (: (-> [Text Text] MultiMap MultiMap)
+                       (lambda [pair headers] (MultiMap.add pair headers)))
+                    (HttpServerResponse.headers [] $response)
+                    response-headers)
+           _ (HttpServerResponse.write [(Buffer.buffer [response-body])] $response)
+           _ (HttpServerResponse.end [] $response)]]
     (wrap [])))
 
-(def (iterator->list iter)
+(def: (iterator->list iter)
   (All [a] (-> (Iterator a) (List a)))
-  (if (Iterator::hasNext [] iter)
-    (#;Cons (Iterator::next [] iter)
+  (if (Iterator.hasNext [] iter)
+    (#;Cons (Iterator.next [] iter)
             (iterator->list iter))
     #;Nil))
 
-(def (request$ req body)
+(def: (request$ req body)
   (-> HttpServerRequest &;HttpBody &;HttpRequest)
-  {#&;request-method (|> req (HttpServerRequest::method []) (Object::toString []) &;HttpMethod$ (? #&;OPTIONS))
-   #&;request-uri    (let [raw-uri (HttpServerRequest::uri [] req)]
+  {#&;request-method (|> req (HttpServerRequest.method []) (Object.toString []) &;HttpMethod$ (? #&;OPTIONS))
+   #&;request-uri    (let [raw-uri (HttpServerRequest.uri [] req)]
                        (? raw-uri
                           (do Maybe/Monad
                             [[uri params] (text;split-with "?" raw-uri)]
@@ -132,50 +135,50 @@
    #&;request-params (get-params req)
    #&;request-body   body})
 
-(def (body-handler k)
+(def: (body-handler k)
   (-> (-> Buffer (Async Unit)) (Handler Buffer))
-  (object [(io.vertx.core.Handler io.vertx.core.buffer.Buffer)]
+  (object [(Handler Buffer)]
     []
-    (#override (io.vertx.core.Handler A) handle [] [(body A)] void
-               (exec (k body)
-                 []))
+    ((Handler A) handle [] [(body A)] void
+     (exec (k body)
+       []))
     ))
 
-(def (http-handler server)
+(def: (http-handler server)
   (-> &;RequestHandler (Handler HttpServerRequest))
-  (object [(io.vertx.core.Handler io.vertx.core.http.HttpServerRequest)]
+  (object [(Handler HttpServerRequest)]
     []
-    (#override (io.vertx.core.Handler A) handle [] [(vreq A)] void
-               (exec (|> vreq
-                         (HttpServerRequest::setExpectMultipart [true])
-                         (HttpServerRequest::bodyHandler
-                          [(body-handler (lambda [body']
-                                           (do Async/Monad
-                                             [#let [body (Buffer::getBytes [] body')
-                                                    request (request$ vreq body)]
-                                              response (server request)
-                                              _ (future (respond! response vreq))]
-                                             (wrap [])
-                                             )))]))
-                 []))))
+    ((Handler A) handle [] [(vreq A)] void
+     (exec (|> vreq
+               (HttpServerRequest.setExpectMultipart [true])
+               (HttpServerRequest.bodyHandler
+                [(body-handler (lambda [body']
+                                 (do Async/Monad
+                                   [#let [body (Buffer.getBytes [] body')
+                                          request (request$ vreq body)]
+                                    response (server request)
+                                    _ (future (respond! response vreq))]
+                                   (wrap [])
+                                   )))]))
+       []))))
 
-(def (verticle$ port server-fun vertx)
+(def: (verticle$ port server-fun vertx)
   (-> &;Port &;RequestHandler Vertx Verticle)
-  (object io.vertx.core.AbstractVerticle []
+  (object AbstractVerticle []
     []
-    (#override io.vertx.core.AbstractVerticle start [] [(start io.vertx.core.Future)] void
-               (exec (run-io (do IO/Monad
-                               [http-server (Vertx::createHttpServer [] vertx)
-                                _ (HttpServer::requestHandler [(http-handler server-fun)] http-server)]
-                               (HttpServer::listen [(_jvm_l2i port)] http-server)))
-                 []))
+    (AbstractVerticle start [] [(start Future)] void
+                      (exec (io;run (do IO/Monad
+                                      [http-server (Vertx.createHttpServer [] vertx)
+                                       _ (HttpServer.requestHandler [(http-handler server-fun)] http-server)]
+                                      (HttpServer.listen [(l2i port)] http-server)))
+                        []))
 
-    (#override io.vertx.core.AbstractVerticle stop [] [(stop io.vertx.core.Future)] void #throws [java.lang.Exception]
-               (run-io (print-line "Verticle stopped!")))))
+    (AbstractVerticle stop [] [(stop Future)] void #throws [java.lang.Exception]
+                      (hack;log! "Verticle stopped!"))))
 
-(def #export (deploy-server port handler)
+(def: #export (deploy-server port handler)
   (-> &;Port &;RequestHandler (IO Unit))
   (do IO/Monad
-    [vertx (Vertx::vertx [])]
-    (Vertx::deployVerticle [(verticle$ port handler vertx)]
-                           vertx)))
+    [vertx (Vertx.vertx [])]
+    (Vertx.deployVerticle [(verticle$ port handler vertx)]
+                          vertx)))

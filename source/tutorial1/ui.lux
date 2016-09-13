@@ -7,43 +7,40 @@
          (lux (control monad
                        eq)
               (data maybe
-                    (number #refer #all #open ("i:" Int/Ord Int/Show))
-                    (list #refer #all #open ("" List/Functor List/Fold
-                                             "list:" List/Monad))
-                    (text #open ("text:" Text/Monoid Text/Eq))
-                    (bool #open ("b:" Bool/Show))
-                    tuple)
+                    [list "" List/Fold "List/" List/Monad]
+                    text/format
+                    [product])
               (codata io)
-              (host jvm
-                    io))
-         (.. (core #as &)
-             (state #as &state)
-             (util #as &util)
-             (server (html #as &html)
-                     (css #as &css))))
+              host)
+         (.. ["&" core]
+             ["&;" state]
+             ["&;" util]
+             (server ["&;" html]
+                     ["&;" css])))
 
 ## [Types]
-(deftype #export DisplayFilter
+(type: #export DisplayFilter
   #All
   #Active
   #Completed)
 
 ## [Structs]
-(defstruct DisplayFilter/Eq (Eq DisplayFilter)
-  (def (= x y)
+(struct: DisplayFilter/Eq (Eq DisplayFilter)
+  (def: (= x y)
     (case [x y]
       (\template [<tag>]
-       [[<tag> <tag>] true])
+       [<tag> <tag>]
+       true)
       ([#All] [#Active] [#Completed])
       
       _
       false)))
 
 ## [Values]
-(def #export css
+(def: #export css
   &css;CSS
   (&css;@css
-   (list:join
+   (List/join
     (list (&css;rule "body"
                      {"font" "14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
                       "line-height" "1.4em"
@@ -146,26 +143,26 @@
                      )
           ))))
 
-(def (task-button$ path css-class label idx)
+(def: (task-button$ path css-class label idx)
   (-> Text Text Text Int &html;Html)
   (&html;a {"class" css-class
-            "href" ($ text:++ path "?id=" (i:show idx))}
+            "href" (<> path "?id=" (%i idx))}
            label))
 
-(def done-label     Text "&#9745;") ## check-mark
-(def not-done-label Text "&#9744;")  ## no-entry sign
-(def delete-label   Text "&#10060;") ## X-mark
+(def: done-label     Text "&#9745;") ## check-mark
+(def: not-done-label Text "&#9744;")  ## no-entry sign
+(def: delete-label   Text "&#10060;") ## X-mark
 
-(def (task$ [task-idx task])
+(def: (task$ [task-idx task])
   (-> [Int &;Task] &html;Html)
   (let [(\slots [#&;completed? #&;description]) task]
-    (&html;div {"class" (text:++ "task" (if completed? " completed" ""))}
+    (&html;div {"class" (<> "task" (if completed? " completed" ""))}
                (task-button$ &util;toggle-path "completed-toggle" (if completed? done-label not-done-label) task-idx)
                (&html;span {"class" "task-description"}
                            description)
                (task-button$ &util;delete-path "delete-button" delete-label task-idx))))
 
-(def new-task-form$
+(def: new-task-form$
   &html;Html
   (&html;form {"class" "new-task-form"
                "method" "post"
@@ -178,16 +175,16 @@
                             "type" "submit"
                             "value" "Submit"})))
 
-(def (tasks-left$ amount)
+(def: (tasks-left$ amount)
   (-> Int &html;Html)
   (&html;span {"class" "tasks-left"}
-              ($ text:++ (i:show amount) " items left")))
+              (<> (%i amount) " items left")))
 
-(def (filters$ active)
+(def: (filters$ active)
   (-> DisplayFilter &html;Html)
-  (using DisplayFilter/Eq
+  (let [(\open) DisplayFilter/Eq]
     (let% [<filters> (do-template [<tag> <label> <path>]
-                       [(&html;a {"class" (text:++ "filter" (if (= <tag> active) " active" "")) "href" <path>} <label>)]
+                       [(&html;a {"class" (<> "filter" (if (= <tag> active) " active" "")) "href" <path>} <label>)]
 
                        [#All       "All"       &util;all-path]
                        [#Active    "Active"    &util;active-path]
@@ -195,18 +192,18 @@
       (&html;div {"class" "filters"}
                  <filters>))))
 
-(def (clear-completed$ show-clear-completed?)
+(def: (clear-completed$ show-clear-completed?)
   (-> Bool &html;Html)
   (if show-clear-completed?
     (&html;a {"class" "clear-completed" "href" &util;clear-completed-path} "Clear completed")
     (&html;span {} "")))
 
-(def task-list$
+(def: task-list$
   (-> &state;AppData &html;Html)
   (. (&html;div' (&html;@attrs {"class" "task-list"}))
-     (map task$)))
+     (List/map task$)))
 
-(def #export (todo$ show-clear-completed? tasks-left active-filter tasks)
+(def: #export (todo$ show-clear-completed? tasks-left active-filter tasks)
   (-> Bool Int DisplayFilter &state;AppData &html;Html)
   (&html;div {"class" "todo"}
              (&html;div {"class" "header"}
@@ -218,13 +215,13 @@
                         (clear-completed$ show-clear-completed?))
              ))
 
-(def #export (show-clear-completed? state)
+(def: #export (show-clear-completed? state)
   (-> &state;AppState (IO Bool))
   (do IO/Monad
     [tasks (&state;get-task-list state)]
-    (wrap (i:> (&state;num-completed-tasks tasks) 0))))
+    (wrap (> (&state;num-completed-tasks tasks) 0))))
 
-(def #export (page$ content)
+(def: #export (page$ content)
   (-> &html;Html &html;Html)
   (&html;node "html" (&html;@attrs {})
               (list (&html;head {}
@@ -235,9 +232,9 @@
                     (&html;body {}
                                 content))))
 
-(def #export (filter-tasks display-filter tasks)
+(def: #export (filter-tasks display-filter tasks)
   (-> DisplayFilter &state;AppData &state;AppData)
   (case display-filter
     #All       tasks
-    #Active    (filter (. &state;active-task? second)    tasks)
-    #Completed (filter (. &state;completed-task? second) tasks)))
+    #Active    (list;filter (. &state;active-task? product;right)    tasks)
+    #Completed (list;filter (. &state;completed-task? product;right) tasks)))

@@ -4,66 +4,61 @@
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
 (;import lux
-         (lux (data (text #open ("text:" Text/Monoid))
-                    (list #refer #all #open ("" List/Functor List/Fold)))
-              (meta lux
-                    syntax
-                    (ast #as ast))))
+         (lux (data [text "Text/" Text/Monoid]
+                    text/format
+                    [list "" List/Functor List/Fold])
+              [meta]
+              (meta syntax
+                    [ast])))
 
 ## [Types]
-(deftype #export Html Text)
+(type: #export Html Text)
 
-(deftype #export Attributes
+(type: #export Attributes
   (List [Text Text]))
 
 ## [Syntax]
-(def attributes^
-  (Parser (List [Text AST]))
+(def: attributes^
+  (Syntax (List [Text AST]))
   (record^ (*^ (&^ text^ id^))))
 
-(defsyntax #export (@attrs [attrs attributes^])
-  (:: Lux/Monad (wrap (list (` (: Attributes
-                                  (list (~@ (map (: (-> [Text AST] AST)
-                                                    (lambda [[key val]]
-                                                      (` [(~ (ast;text key)) (~ val)])))
-                                                 attrs)))))))))
+(syntax: #export (@attrs [attrs attributes^])
+  (wrap (list (` (: Attributes
+                    (list (~@ (map (: (-> [Text AST] AST)
+                                      (lambda [[key val]]
+                                        (` [(~ (ast;text key)) (~ val)])))
+                                   attrs))))))))
 
-(defsyntax #export (%tag% [name local-symbol^])
-  (:: Lux/Monad (wrap (list (ast;text name)))))
+(syntax: #export (%tag% [name local-symbol^])
+  (wrap (list (ast;text name))))
 
-(defsyntax #export (%tag-func-name% [name local-symbol^])
-  (:: Lux/Monad (wrap (list (ast;symbol ["" (text:++ name "'")])))))
+(syntax: #export (%tag-func-name% [name local-symbol^])
+  (wrap (list (ast;symbol ["" (Text/++ name "'")]))))
 
 ## [Functions]
-(def (concat-with sep elems)
-  (-> Text (List Text) Text)
-  (|> elems
-      (interpose sep)
-      (foldL text:++ "")))
-
-(def (attrs->text attrs)
+(def: (attrs->text attrs)
   (-> Attributes Text)
   (|> attrs
-      (map (lambda [[key val]] ($ text:++ key "=" "\"" val "\"")))
-      (concat-with " ")))
+      (map (lambda [[key val]] (<> key "=" "\"" val "\"")))
+      (text;join-with " ")))
 
-(def #export (node name attrs children)
+(def: #export (node name attrs children)
   (-> Text Attributes (List Html) Html)
-  ($ text:++ "<" name " " (attrs->text attrs) ">" (concat-with " " children) "</" name ">"))
+  (<> "<" name " " (attrs->text attrs) ">" (text;join-with " " children) "</" name ">"))
 
 (do-template [<name>]
   [(let% [<fun-name> (%tag-func-name% <name>)]
-     (def #export <fun-name>
+     (def: #export <fun-name>
        (node (%tag% <name>)))
 
-     (defsyntax #export (<name> attrs [children (*^ id^)])
+     (syntax: #export (<name> attrs [children (*^ id^)])
        (let [attrs' (case attrs
                       [_ (#;RecordS _)]
                       (` (@attrs (~ attrs)))
 
                       _
                       attrs)]
-         (:: Lux/Monad (wrap (list (` (<fun-name> (~ attrs') (list (~@ children))))))))))]
+         (wrap (list (` (<fun-name> (~ attrs') (list (~@ children)))))))))]
 
   ## Head
   [head]

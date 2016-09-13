@@ -6,6 +6,6 @@
 (;import lux)
 
 ## [Types]
-(deftype #export Task
+(type: #export Task
   {#completed? Bool
    #description Text})

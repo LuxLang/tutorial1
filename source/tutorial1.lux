@@ -7,52 +7,68 @@
          (lux (control monad
                        eq)
               (data maybe
-                    (number #refer #all #open ("i:" Int/Ord Int/Show))
-                    (list #refer #all #open ("" List/Functor List/Fold
-                                             "list:" List/Monad))
-                    (text #open ("text:" Text/Monoid Text/Eq))
-                    (bool #open ("b:" Bool/Show))
-                    tuple)
+                    [list #* "" List/Functor List/Fold]
+                    [text "Text/" Text/Monoid Text/Eq]
+                    [number "Int/" Int/Codec@Text]
+                    error
+                    [product]
+                    text/format)
               (codata io)
-              (host jvm
-                    io)
-              (concurrency async))
-         (. (core #as &&)
-            (state #as &&state)
-            (util #as &&util)
-            (ui #as &&ui)
-            (server (core #as &&server)
-                    (host #as &&server-host))))
+              host
+              (concurrency async)
+              [cli #+ program:]
+              [hack])
+         (. ["&&" core]
+            ["&&;" state]
+            ["&&;" util]
+            ["&&;" ui]
+            (server ["&&server" core]
+                    ["&&server-host" host])))
+
+## [Utils]
+(def: (error->maybe input)
+  (All [a] (-> (Error a) (Maybe a)))
+  (case input
+    (#;Left _)
+    #;None
+
+    (#;Right output)
+    (#;Some output)
+    ))
 
 ## [Program]
-(def (handler state req)
+(def: (handler state req)
   (-> &&state;AppState &&server;RequestHandler)
-  (let [(\slots [#&&server;request-method #&&server;request-uri #&&server;request-headers #&&server;request-params #&&server;request-body]) req]
+  (let [(\slots [#&&server;request-method
+                 #&&server;request-uri
+                 #&&server;request-headers
+                 #&&server;request-params
+                 #&&server;request-body]) req]
     (case request-uri
       (\~ &&util;css-path)
-      (:: Async/Monad (wrap (&&server;css-response &&ui;css)))
+      (:: Async/Monad wrap (&&server;css-response &&ui;css))
       
       _
       (do Async/Monad
         [#let [referer (? &&util;default-referer
                           (&&server;get-header "Referer" request-headers))
-               same-url? (text:= (text:++ &&util;default-host request-uri) referer)]
+               same-url? (Text/= (Text/++ &&util;default-host request-uri) referer)]
          [succeded? refer?] (: (Async [Bool Bool])
-                               (? (wrap [(i:= 0 (size request-params)) false])
+                               (? (wrap [(= 0 (size request-params)) false])
                                   (: (Maybe (Async [Bool Bool]))
                                      (case request-uri
                                        (\~ &&util;toggle-path)
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
-                                          id (:: Int/Read (read id'))]
+                                          id (error->maybe (Int/decode id'))]
                                          (wrap (do Async/Monad
-                                                 [success (future (&&state;do-task id state))]
+                                                 [success (future (&&state;toggle-task id state))]
                                                  (wrap [success true]))))
                                        
                                        (\~ &&util;delete-path)
                                        (do Maybe/Monad
                                          [id' (&&server;get-param "id" request-params)
-                                          id (:: Int/Read (read id'))]
+                                          id (error->maybe (Int/decode id'))]
                                          (wrap (do Async/Monad
                                                  [success (future (&&state;delete-task id state))]
                                                  (wrap [success true]))))
@@ -67,8 +83,8 @@
                                        _
                                        (do Maybe/Monad
                                          [task-desc (&&server;get-param "todo" request-params)]
-                                         (if (text:= "" task-desc)
-                                           (wrap (:: Async/Monad (wrap [true true])))
+                                         (if (Text/= "" task-desc)
+                                           (wrap (:: Async/Monad wrap [true true]))
                                            (wrap (do Async/Monad
                                                    [success (if same-url?
                                                               (future (&&state;add-task task-desc state))
@@ -77,7 +93,7 @@
                                          )))))
          show-clear-completed? (future (&&ui;show-clear-completed? state))
          tasks (: (Async &&state;AppData) (future (&&state;get-task-list state)))
-         #let [tasks-left (|> tasks (filter (. &&state;active-task? second)) size)
+         #let [tasks-left (|> tasks (filter (. &&state;active-task? product;right)) size)
                display-filter (case request-uri
                                 (\~ &&util;all-path)       #&&ui;All
                                 (\~ &&util;active-path)    #&&ui;Active
@@ -91,7 +107,8 @@
                 (&&server;html-response output-page)))))
     ))
 
-(program args
+(program: args
   (do IO/Monad
-    [app-state &&state;gen-state]
-    (&&server-host;deploy-server &&util;server-port (handler app-state))))
+    [app-state &&state;gen-state
+     _ (&&server-host;deploy-server &&util;server-port (handler app-state))]
+    (wrap (hack;log! "Server is running!"))))

@@ -7,27 +7,19 @@
          (lux (control monad
                        eq)
               (data maybe
-                    (list #refer #all #open ("" List/Functor List/Fold
-                                             "list:" List/Monad))
-                    (text #open ("text:" Text/Monoid Text/Eq)))
-              (codata io)
-              host)
-         (.. (core #as &)))
-
-## [Host]
-(jvm-import #long (java.util.List e)
-  (add [] [e] #io boolean)
-  (get [] [int] e)
-  (set [] [int e] #io e)
-  (remove [] [int] #io e)
-  (size [] [] int))
-
-(jvm-import (java.util.concurrent.CopyOnWriteArrayList e)
-  (new [] []))
+                    [list "" List/Functor]
+                    [dict]
+                    [product]
+                    [number])
+              (codata [io #- run])
+              host
+              (concurrency [stm])
+              [hack])
+         (.. ["&" core]))
 
 ## [Types]
 (type: #export AppState
-  (CopyOnWriteArrayList &;Task))
+  (stm;Var [Int (dict;Dict Int &;Task)]))
 
 (type: #export AppData
   (List [Int &;Task]))
@@ -35,7 +27,7 @@
 ## [Values]
 (def: #export gen-state
   (IO AppState)
-  (io (CopyOnWriteArrayList.new [])))
+  (io (stm;var [0 (dict;new number;Int/Hash)])))
 
 (do-template [<name> <filter> <post>]
   [(def: #export (<filter> task)
@@ -45,49 +37,64 @@
    (def: #export (<name> tasks)
      (-> AppData Int)
      (|> tasks
-         (filter (lambda [[idx task]] (<filter> task)))
-         (size)))]
+         (list;filter (|>. product;right <filter>))
+         list;size))]
 
   [num-active-tasks    active-task?    not]
   [num-completed-tasks completed-task? id]
   )
 
-(def: #export (get-task-list state)
+(def: #export (get-task-list !state)
   (-> AppState (IO AppData))
-  (:: IO/Monad wrap (map (lambda [idx] [idx (java.util.List.get [(l2i idx)] state)])
-                         (range 0 (dec (i2l (java.util.List.size [] state)))))))
+  (do IO/Monad
+    [[next-id data] (stm;read! !state)]
+    (wrap (list;sort (lambda [[idl _] [idr _]] (< idl idr))
+                     (dict;entries data)))))
 
-(def: #export (add-task task-desc state)
+(def: #export (add-task task-desc !state)
   (-> Text AppState (IO Bool))
-  (let [task {#&;completed? false
-              #&;description task-desc}]
-    (java.util.List.add [task] state)))
+  (do IO/Monad
+    [[next-id data] (stm;read! !state)
+     #let [task {#&;completed? false
+                 #&;description task-desc}]
+     _ (stm;write! [(inc next-id)
+                    (dict;put next-id task data)]
+                   !state)]
+    (wrap true)))
 
-(def: #export (toggle-task idx state)
+(def: #export (toggle-task idx !state)
   (-> Int AppState (IO Bool))
-  (if (< (i2l (java.util.List.size [] state))
-         idx)
-    (do IO/Monad
-      [#let [task (java.util.List.get [(l2i idx)] state)]
-       _ (java.util.List.set [(l2i idx) (update@ #&;completed? not task)] state)]
-      (wrap true))
-    (:: IO/Monad wrap false)))
+  (do IO/Monad
+    [[next-id data] (stm;read! !state)]
+    (case (dict;get idx data)
+      (#;Some task)
+      (do %
+        [#let [data' (dict;put idx (update@ #&;completed? not task) data)]
+         _ (stm;write! [next-id data'] !state)]
+        (wrap true))
 
-(def: #export (delete-task idx state)
+      #;None
+      (:: IO/Monad wrap false))))
+
+(def: #export (delete-task idx !state)
   (-> Int AppState (IO Bool))
-  (if (< (i2l (java.util.List.size [] state))
-         idx)
-    (do IO/Monad
-      [_ (java.util.List.remove [(l2i idx)] state)]
-      (wrap true))
-    (:: IO/Monad wrap false)))
+  (do IO/Monad
+    [[next-id data] (stm;read! !state)]
+    (case (dict;get idx data)
+      (#;Some task)
+      (do %
+        [_ (stm;write! [next-id (dict;remove idx data)] !state)]
+        (wrap true))
+
+      #;None
+      (:: IO/Monad wrap false))))
 
 (def: #export (clear-completed state)
   (-> AppState (IO Bool))
   (do IO/Monad
     [task-list (get-task-list state)
      _ (|> task-list
-           reverse
+           list;reverse
            (map% % (: (-> [Int &;Task] (IO Bool))
                       (lambda [[idx task]]
                         (if (completed-task? task)

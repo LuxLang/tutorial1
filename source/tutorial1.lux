@@ -6,16 +6,17 @@
 (;import lux
          (lux (control monad
                        eq)
-              (data maybe
-                    [list #* "" List/Functor List/Fold]
-                    [text "Text/" Text/Monoid Text/Eq]
+              (data [list #* "" List/Functor List/Fold]
+                    [text "Text/" Text/Eq]
                     [number "Int/" Int/Codec@Text]
                     error
                     [product]
                     text/format)
-              (codata io)
+              [meta]
+              (meta [syntax #- run])
+              (codata [io #- run])
               host
-              (concurrency async)
+              (concurrency [async #+ Async Async/Monad])
               [cli #+ program:]
               [hack])
          (. ["&&" core]
@@ -25,15 +26,19 @@
             (server ["&&server" core]
                     ["&&server-host" host])))
 
-## [Utils]
-(def: (error->maybe input)
-  (All [a] (-> (Error a) (Maybe a)))
-  (case input
-    (#;Left _)
-    #;None
+(syntax: (?? default input)
+  {#;doc "A simple macro for providing default values to Error-producing expressions."}
+  (do %
+    [g!_ (meta;gensym "")
+     g!output (meta;gensym "")]
+    (wrap (list (` (case (~ input)
+                     (#;Left (~ g!_))
+                     (~ default)
 
-    (#;Right output)
-    (#;Some output)
+                     (#;Right (~ g!output))
+                     (~ g!output)
+                     ))
+                ))
     ))
 
 ## [Program]
@@ -44,64 +49,64 @@
                  #&&server;request-headers
                  #&&server;request-params
                  #&&server;request-body]) req]
-    (case request-uri
-      (\~ &&util;css-path)
+    (if (Text/= &&util;css-path request-uri)
+      ## Serve CSS style-sheet if route matches.
       (:: Async/Monad wrap (&&server;css-response &&ui;css))
-      
-      _
+      ## Otherwise, some functionality is required.
       (do Async/Monad
-        [#let [referer (? &&util;default-referer
-                          (&&server;get-header "Referer" request-headers))
-               same-url? (Text/= (Text/++ &&util;default-host request-uri) referer)]
-         [succeded? refer?] (: (Async [Bool Bool])
-                               (? (wrap [(= 0 (size request-params)) false])
-                                  (: (Maybe (Async [Bool Bool]))
-                                     (case request-uri
-                                       (\~ &&util;toggle-path)
-                                       (do Maybe/Monad
-                                         [id' (&&server;get-param "id" request-params)
-                                          id (error->maybe (Int/decode id'))]
-                                         (wrap (do Async/Monad
-                                                 [success (future (&&state;toggle-task id state))]
-                                                 (wrap [success true]))))
-                                       
-                                       (\~ &&util;delete-path)
-                                       (do Maybe/Monad
-                                         [id' (&&server;get-param "id" request-params)
-                                          id (error->maybe (Int/decode id'))]
-                                         (wrap (do Async/Monad
-                                                 [success (future (&&state;delete-task id state))]
-                                                 (wrap [success true]))))
+        [#let [## When visiting some URL, I need to figure out from
+               ## where did the user come from, because to add a task
+               ## to the TODO list, you must POST it to your current
+               ## route (whatever it may be).
+               referer (?? &&util;default-referer
+                           (&&server;get-header "Referer" request-headers))
+               same-url? (Text/= (<> &&util;default-host request-uri) referer)]
+         succeded? (?? (wrap false)
+                       (case request-uri
+                         (\~ &&util;toggle-path)
+                         (do Error/Monad
+                           [id' (&&server;get-param "id" request-params)
+                            id (Int/decode id')]
+                           (wrap (async;future (&&state;toggle-task id state))))
+                         
+                         (\~ &&util;delete-path)
+                         (do Error/Monad
+                           [id' (&&server;get-param "id" request-params)
+                            id (Int/decode id')]
+                           (wrap (async;future (&&state;delete-task id state))))
 
-                                       (\~ &&util;clear-completed-path)
-                                       (do Maybe/Monad
-                                         []
-                                         (wrap (do Async/Monad
-                                                 [success (future (&&state;clear-completed state))]
-                                                 (wrap [success true]))))
-                                       
-                                       _
-                                       (do Maybe/Monad
-                                         [task-desc (&&server;get-param "todo" request-params)]
-                                         (if (Text/= "" task-desc)
-                                           (wrap (:: Async/Monad wrap [true true]))
-                                           (wrap (do Async/Monad
-                                                   [success (if same-url?
-                                                              (future (&&state;add-task task-desc state))
-                                                              (wrap true))]
-                                                   (wrap [success true]))))
-                                         )))))
-         show-clear-completed? (future (&&ui;show-clear-completed? state))
-         tasks (: (Async &&state;AppData) (future (&&state;get-task-list state)))
-         #let [tasks-left (|> tasks (filter (. &&state;active-task? product;right)) size)
+                         (\~ &&util;clear-completed-path)
+                         (do Error/Monad
+                           []
+                           (wrap (async;future (&&state;clear-completed state))))
+                         
+                         _ ## else
+                         (do Error/Monad
+                           [task-desc (&&server;get-param "todo" request-params)]
+                           (if (Text/= "" task-desc)
+                             ## Don't add empty tasks.
+                             (wrap (:: Async/Monad wrap true))
+                             (wrap (if same-url?
+                                     (async;future (&&state;add-task task-desc state))
+                                     (:: Async/Monad wrap true))))
+                           )))
+         show-clear-completed? (async;future (&&ui;show-clear-completed? state))
+         ## Get all the currently-available tasks.
+         tasks (async;future (&&state;get-task-list state))
+         #let [num-tasks-left (|> tasks
+                                  (filter (. &&state;active-task? product;right))
+                                  size)
+               ## Figure out the filter from the URL.
                display-filter (case request-uri
                                 (\~ &&util;all-path)       #&&ui;All
                                 (\~ &&util;active-path)    #&&ui;Active
                                 (\~ &&util;completed-path) #&&ui;Completed
                                 _                          #&&ui;All)
+               ## Figure out which tasks to render.
                tasks-to-show (&&ui;filter-tasks display-filter tasks)
-               output-page (&&ui;page$ (&&ui;todo$ show-clear-completed? tasks-left display-filter tasks-to-show))]]
-        (wrap (if (and refer?
+               ## The rendered tasks page.
+               output-page (&&ui;page$ (&&ui;todo$ show-clear-completed? num-tasks-left display-filter tasks-to-show))]]
+        (wrap (if (and succeded?
                        (not same-url?))
                 (&&server;redirect referer)
                 (&&server;html-response output-page)))))
@@ -109,6 +114,8 @@
 
 (program: args
   (do IO/Monad
-    [app-state &&state;gen-state
+    [## Initialize app-state.
+     app-state &&state;gen-state
+     ## Deploy Vert.x server.
      _ (&&server-host;deploy-server &&util;server-port (handler app-state))]
     (wrap (hack;log! "Server is running!"))))

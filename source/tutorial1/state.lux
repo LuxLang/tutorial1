@@ -19,26 +19,29 @@
 
 ## [Types]
 (type: #export AppState
+  {#;doc "The next-ID for a task, and the collection of tasks."}
   (stm;Var [Int (dict;Dict Int &;Task)]))
 
 (type: #export AppData
+  {#;doc "App-data, as can be rendered onto HTML."}
   (List [Int &;Task]))
 
 ## [Values]
 (def: #export gen-state
+  {#;doc "A procedure for generating an initial app-state."}
   (IO AppState)
   (io (stm;var [0 (dict;new number;Int/Hash)])))
 
 (do-template [<name> <filter> <post>]
-  [(def: #export (<filter> task)
+  [(def: #export <filter>
      (-> &;Task Bool)
-     (<post> (get@ #&;completed? task)))
+     (|>. (get@ #&;completed?)
+          <post>))
 
-   (def: #export (<name> tasks)
+   (def: #export <name>
      (-> AppData Int)
-     (|> tasks
-         (list;filter (|>. product;right <filter>))
-         list;size))]
+     (|>. (list;filter (|>. product;right <filter>))
+          list;size))]
 
   [num-active-tasks    active-task?    not]
   [num-completed-tasks completed-task? id]
@@ -56,9 +59,9 @@
   (do IO/Monad
     [[next-id data] (stm;read! !state)
      #let [task {#&;completed? false
-                 #&;description task-desc}]
-     _ (stm;write! [(inc next-id)
-                    (dict;put next-id task data)]
+                 #&;description task-desc}
+           data' (dict;put next-id task data)]
+     _ (stm;write! [(inc next-id) data']
                    !state)]
     (wrap true)))
 
@@ -95,9 +98,10 @@
     [task-list (get-task-list state)
      _ (|> task-list
            list;reverse
-           (map% % (: (-> [Int &;Task] (IO Bool))
-                      (lambda [[idx task]]
-                        (if (completed-task? task)
-                          (delete-task idx state)
-                          (wrap true))))))]
+           (map% %
+                 (: (-> [Int &;Task] (IO Bool))
+                    (lambda [[idx task]]
+                      (if (completed-task? task)
+                        (delete-task idx state)
+                        (wrap true))))))]
     (wrap true)))

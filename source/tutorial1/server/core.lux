@@ -8,7 +8,9 @@
                     [text "Text/" Text/Eq]
                     [list "" List/Functor]
                     [number "Int/" Int/Codec@Text]
-                    [array #+ Array])
+                    [array #+ Array]
+                    text/format
+                    error)
               host
               [meta]
               (meta [ast]
@@ -129,14 +131,20 @@
   (-> Text HttpParams Bool)
   (list;any? (lambda [[k v]] (Text/= name k))))
 
-(do-template [<name> <type>]
-  [(def: #export (<name> name)
-     (-> Text <type> (Maybe Text))
-     (list;some (lambda [[k v]]
-                  (if (Text/= name k)
-                    (#;Some v)
-                    #;None))))]
+(do-template [<name> <type> <desc>]
+  [(def: #export (<name> name data)
+     (-> Text <type> (Error Text))
+     (case (list;some (lambda [[k v]]
+                        (if (Text/= name k)
+                          (#;Some v)
+                          #;None))
+                      data)
+       (#;Some value)
+       (#;Right value)
 
-  [get-header HttpHeaders]
-  [get-param  HttpParams]
+       #;None
+       (#;Left (<> <desc> " not found: " name))))]
+
+  [get-header HttpHeaders "Header"]
+  [get-param  HttpParams  "Parameter"]
   )

@@ -15,6 +15,7 @@
 (type: #export Html Text)
 
 (type: #export Attributes
+  {#;doc "Attributes for an HTML tag."}
   (List [Text Text]))
 
 ## [Syntax]
@@ -23,6 +24,7 @@
   (record^ (*^ (&^ text^ id^))))
 
 (syntax: #export (@attrs [attrs attributes^])
+  {#;doc "Macro for turning simple record-syntax with text-tags into HTML tag attributes."}
   (wrap (list (` (: Attributes
                     (list (~@ (map (: (-> [Text AST] AST)
                                       (lambda [[key val]]
@@ -30,9 +32,11 @@
                                    attrs))))))))
 
 (syntax: #export (%tag% [name local-symbol^])
+  {#;doc "Given the name of a tag-macro, generates it's text form."}
   (wrap (list (ast;text name))))
 
 (syntax: #export (%tag-func-name% [name local-symbol^])
+  {#;doc "Given the name of a tag-macro, generates the name for a tag-function."}
   (wrap (list (ast;symbol ["" (Text/++ name "'")]))))
 
 ## [Functions]
@@ -43,14 +47,19 @@
       (text;join-with " ")))
 
 (def: #export (node name attrs children)
+  {#;doc "Generates the HTML for a node."}
   (-> Text Attributes (List Html) Html)
   (<> "<" name " " (attrs->text attrs) ">" (text;join-with " " children) "</" name ">"))
 
 (do-template [<name>]
   [(let% [<fun-name> (%tag-func-name% <name>)]
+     ## Simple functions to avoid calling 'node' directly.
      (def: #export <fun-name>
        (node (%tag% <name>)))
 
+     ## These macros just simplify HTML construction by saving people
+     ## from having to constantly call the @attrs macro and passing
+     ## children lists.
      (syntax: #export (<name> attrs [children (*^ id^)])
        (let [attrs' (case attrs
                       [_ (#;RecordS _)]

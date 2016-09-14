@@ -10,13 +10,14 @@
               [meta]
               (meta syntax
                     [ast])
-              (control (monad #as M))))
+              (control ["M" monad])))
 
 ## [Types]
 (type: #export Selector
   Text)
 
 (type: #export Style
+  {#;doc "The properties associated with a CSS selector."}
   (List [Text Text]))
 
 (type: #export CssRule Text)

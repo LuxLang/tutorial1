@@ -20,6 +20,7 @@
 
 ## [Types]
 (type: #export DisplayFilter
+  {#;doc "Models the different filter views."}
   #All
   #Active
   #Completed)
@@ -38,6 +39,7 @@
 
 ## [Values]
 (def: #export css
+  {#;doc "The entire CSS style-sheet for the UI."}
   &css;CSS
   (&css;@css
    (List/join
@@ -149,7 +151,7 @@
             "href" (<> path "?id=" (%i idx))}
            label))
 
-(def: done-label     Text "&#9745;") ## check-mark
+(def: done-label     Text "&#9745;")  ## check-mark
 (def: not-done-label Text "&#9744;")  ## no-entry sign
 (def: delete-label   Text "&#10060;") ## X-mark
 
@@ -157,10 +159,16 @@
   (-> [Int &;Task] &html;Html)
   (let [(\slots [#&;completed? #&;description]) task]
     (&html;div {"class" (<> "task" (if completed? " completed" ""))}
-               (task-button$ &util;toggle-path "completed-toggle" (if completed? done-label not-done-label) task-idx)
+               (task-button$ &util;toggle-path
+                             "completed-toggle"
+                             (if completed? done-label not-done-label)
+                             task-idx)
                (&html;span {"class" "task-description"}
                            description)
-               (task-button$ &util;delete-path "delete-button" delete-label task-idx))))
+               (task-button$ &util;delete-path
+                             "delete-button"
+                             delete-label
+                             task-idx))))
 
 (def: new-task-form$
   &html;Html
@@ -219,7 +227,7 @@
   (-> &state;AppState (IO Bool))
   (do IO/Monad
     [tasks (&state;get-task-list state)]
-    (wrap (> (&state;num-completed-tasks tasks) 0))))
+    (wrap (> 0 (&state;num-completed-tasks tasks)))))
 
 (def: #export (page$ content)
   (-> &html;Html &html;Html)

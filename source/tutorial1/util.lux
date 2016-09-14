@@ -4,8 +4,8 @@
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
 (;import lux
-         (lux/data/text #open ("Text/" Text/Monoid))
-         (.. (server (core #as &server))))
+         lux/data/text/format
+         (.. (server ["&server" core])))
 
 ## [Values]
 (def: #export server-port
@@ -37,4 +37,4 @@
 
 (def: #export default-referer
   &server;URL
-  (Text/++ default-host all-path))
+  (<> default-host all-path))

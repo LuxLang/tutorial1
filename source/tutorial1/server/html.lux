@@ -3,13 +3,15 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         (lux (data [text "Text/" Text/Monoid]
-                    text/format
-                    [list "" List/Functor List/Fold])
-              [meta]
-              (meta syntax
-                    [ast])))
+(;module:
+  lux
+  (lux (control monad)
+       (data [text]
+             text/format
+             (struct [list "" Functor<List> Fold<List>]))
+       [compiler]
+       (macro ["s" syntax #+ Syntax syntax:]
+              [ast])))
 
 ## [Types]
 (type: #export Html Text)
@@ -21,9 +23,9 @@
 ## [Syntax]
 (def: attributes^
   (Syntax (List [Text AST]))
-  (record^ (*^ (&^ text^ id^))))
+  (s;record (s;some (s;seq s;text s;any))))
 
-(syntax: #export (@attrs [attrs attributes^])
+(syntax: #export (attrs [attrs attributes^])
   {#;doc "Macro for turning simple record-syntax with text-tags into HTML tag attributes."}
   (wrap (list (` (: Attributes
                     (list (~@ (map (: (-> [Text AST] AST)
@@ -31,25 +33,25 @@
                                         (` [(~ (ast;text key)) (~ val)])))
                                    attrs))))))))
 
-(syntax: #export (%tag% [name local-symbol^])
+(syntax: #export (%tag% [name s;local-symbol])
   {#;doc "Given the name of a tag-macro, generates it's text form."}
   (wrap (list (ast;text name))))
 
-(syntax: #export (%tag-func-name% [name local-symbol^])
+(syntax: #export (%tag-func-name% [name s;local-symbol])
   {#;doc "Given the name of a tag-macro, generates the name for a tag-function."}
-  (wrap (list (ast;symbol ["" (Text/++ name "'")]))))
+  (wrap (list (ast;symbol ["" (format name "'")]))))
 
 ## [Functions]
 (def: (attrs->text attrs)
   (-> Attributes Text)
   (|> attrs
-      (map (lambda [[key val]] (<> key "=" "\"" val "\"")))
+      (map (lambda [[key val]] (format key "=" "\"" val "\"")))
       (text;join-with " ")))
 
 (def: #export (node name attrs children)
   {#;doc "Generates the HTML for a node."}
   (-> Text Attributes (List Html) Html)
-  (<> "<" name " " (attrs->text attrs) ">" (text;join-with " " children) "</" name ">"))
+  (format "<" name " " (attrs->text attrs) ">" (text;join-with " " children) "</" name ">"))
 
 (do-template [<name>]
   [(let% [<fun-name> (%tag-func-name% <name>)]
@@ -58,12 +60,12 @@
        (node (%tag% <name>)))
 
      ## These macros just simplify HTML construction by saving people
-     ## from having to constantly call the @attrs macro and passing
+     ## from having to constantly call the attrs macro and passing
      ## children lists.
-     (syntax: #export (<name> attrs [children (*^ id^)])
+     (syntax: #export (<name> attrs [children (s;some s;any)])
        (let [attrs' (case attrs
                       [_ (#;RecordS _)]
-                      (` (@attrs (~ attrs)))
+                      (` (attrs (~ attrs)))
 
                       _
                       attrs)]

@@ -3,39 +3,40 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         (lux (control monad
-                       eq)
-              (data [list #* "" List/Functor List/Fold]
-                    [text "Text/" Text/Eq]
-                    [number "Int/" Int/Codec@Text]
-                    error
-                    [product]
-                    text/format)
-              [meta]
-              (meta [syntax #- run])
-              (codata [io #- run])
-              host
-              (concurrency [async #+ Async Async/Monad])
-              [cli #+ program:]
-              [hack])
-         (. ["&&" core]
-            ["&&;" state]
-            ["&&;" util]
-            ["&&;" ui]
-            (server ["&&server" core]
-                    ["&&server-host" host])))
+(;module:
+  lux
+  (lux (control monad
+                eq)
+       (data (struct [list #* "" Functor<List> Fold<List>])
+             [text "Text/" Eq<Text>]
+             [number "Int/" Codec<Text,Int>]
+             ["E" error #*]
+             [product]
+             text/format)
+       [compiler]
+       (macro ["s" syntax #+ Syntax syntax:])
+       (codata [io #- run])
+       host
+       (concurrency [promise #+ Promise Monad<Promise>])
+       [cli #+ program:])
+  (. ["&&" core]
+     ["&&;" state]
+     ["&&;" util]
+     ["&&;" ui]
+     (server ["&&server" core]
+             ["&&server-host" host])
+     ))
 
 (syntax: (?? default input)
   {#;doc "A simple macro for providing default values to Error-producing expressions."}
-  (do %
-    [g!_ (meta;gensym "")
-     g!output (meta;gensym "")]
+  (do @
+    [g!_ (compiler;gensym "")
+     g!output (compiler;gensym "")]
     (wrap (list (` (case (~ input)
-                     (#;Left (~ g!_))
+                     (#E;Error (~ g!_))
                      (~ default)
 
-                     (#;Right (~ g!output))
+                     (#E;Success (~ g!output))
                      (~ g!output)
                      ))
                 ))
@@ -43,64 +44,64 @@
 
 ## [Program]
 (def: (handler state req)
-  (-> &&state;AppState &&server;RequestHandler)
-  (let [(\slots [#&&server;request-method
+  (-> &&state;App-State &&server;Request-Handler)
+  (let [(^slots [#&&server;request-method
                  #&&server;request-uri
                  #&&server;request-headers
                  #&&server;request-params
                  #&&server;request-body]) req]
     (if (Text/= &&util;css-path request-uri)
       ## Serve CSS style-sheet if route matches.
-      (:: Async/Monad wrap (&&server;css-response &&ui;css))
+      (:: Monad<Promise> wrap (&&server;css-response &&ui;css))
       ## Otherwise, some functionality is required.
-      (do Async/Monad
+      (do Monad<Promise>
         [#let [## When visiting some URL, I need to figure out from
                ## where did the user come from, because to add a task
                ## to the TODO list, you must POST it to your current
                ## route (whatever it may be).
                referer (?? &&util;default-referer
                            (&&server;get-header "Referer" request-headers))
-               same-url? (Text/= (<> &&util;default-host request-uri) referer)]
+               same-url? (Text/= (format &&util;default-host request-uri) referer)]
          succeded? (?? (wrap false)
                        (case request-uri
-                         (\~ &&util;toggle-path)
-                         (do Error/Monad
+                         (^~ &&util;toggle-path)
+                         (do Monad<Error>
                            [id' (&&server;get-param "id" request-params)
                             id (Int/decode id')]
-                           (wrap (async;future (&&state;toggle-task id state))))
+                           (wrap (promise;future (&&state;toggle-task (int-to-nat id) state))))
                          
-                         (\~ &&util;delete-path)
-                         (do Error/Monad
+                         (^~ &&util;delete-path)
+                         (do Monad<Error>
                            [id' (&&server;get-param "id" request-params)
                             id (Int/decode id')]
-                           (wrap (async;future (&&state;delete-task id state))))
+                           (wrap (promise;future (&&state;delete-task (int-to-nat id) state))))
 
-                         (\~ &&util;clear-completed-path)
-                         (do Error/Monad
+                         (^~ &&util;clear-completed-path)
+                         (do Monad<Error>
                            []
-                           (wrap (async;future (&&state;clear-completed state))))
+                           (wrap (promise;future (&&state;clear-completed state))))
                          
                          _ ## else
-                         (do Error/Monad
+                         (do Monad<Error>
                            [task-desc (&&server;get-param "todo" request-params)]
                            (if (Text/= "" task-desc)
                              ## Don't add empty tasks.
-                             (wrap (:: Async/Monad wrap true))
+                             (wrap (:: Monad<Promise> wrap true))
                              (wrap (if same-url?
-                                     (async;future (&&state;add-task task-desc state))
-                                     (:: Async/Monad wrap true))))
+                                     (promise;future (&&state;add-task task-desc state))
+                                     (:: Monad<Promise> wrap true))))
                            )))
-         show-clear-completed? (async;future (&&ui;show-clear-completed? state))
+         show-clear-completed? (promise;future (&&ui;show-clear-completed? state))
          ## Get all the currently-available tasks.
-         tasks (async;future (&&state;get-task-list state))
+         tasks (promise;future (&&state;get-task-list state))
          #let [num-tasks-left (|> tasks
                                   (filter (. &&state;active-task? product;right))
                                   size)
                ## Figure out the filter from the URL.
                display-filter (case request-uri
-                                (\~ &&util;all-path)       #&&ui;All
-                                (\~ &&util;active-path)    #&&ui;Active
-                                (\~ &&util;completed-path) #&&ui;Completed
+                                (^~ &&util;all-path)       #&&ui;All
+                                (^~ &&util;active-path)    #&&ui;Active
+                                (^~ &&util;completed-path) #&&ui;Completed
                                 _                          #&&ui;All)
                ## Figure out which tasks to render.
                tasks-to-show (&&ui;filter-tasks display-filter tasks)
@@ -113,9 +114,9 @@
     ))
 
 (program: args
-  (do IO/Monad
+  (do Monad<IO>
     [## Initialize app-state.
      app-state &&state;gen-state
      ## Deploy Vert.x server.
      _ (&&server-host;deploy-server &&util;server-port (handler app-state))]
-    (wrap (hack;log! "Server is running!"))))
+    (wrap (log! "Server is running!"))))

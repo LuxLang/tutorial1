@@ -3,34 +3,34 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         (lux (control monad
-                       eq)
-              (data maybe
-                    [list "" List/Functor]
-                    [dict]
-                    [product]
-                    [number])
-              (codata [io #- run])
-              host
-              (concurrency [stm])
-              [hack])
-         (.. ["&" core]))
+(;module:
+  lux
+  (lux (control monad
+                eq)
+       (data maybe
+             [product]
+             [number]
+             (struct [list "" Functor<List>]
+                     [dict]))
+       (codata [io #- run])
+       host
+       (concurrency [stm]))
+  (.. ["&" core]))
 
 ## [Types]
-(type: #export AppState
+(type: #export App-State
   {#;doc "The next-ID for a task, and the collection of tasks."}
-  (stm;Var [Int (dict;Dict Int &;Task)]))
+  (stm;Var [Nat (dict;Dict Nat &;Task)]))
 
-(type: #export AppData
+(type: #export App-Data
   {#;doc "App-data, as can be rendered onto HTML."}
-  (List [Int &;Task]))
+  (List [Nat &;Task]))
 
 ## [Values]
 (def: #export gen-state
   {#;doc "A procedure for generating an initial app-state."}
-  (IO AppState)
-  (io (stm;var [0 (dict;new number;Int/Hash)])))
+  (IO App-State)
+  (io (stm;var [+0 (dict;new number;Hash<Nat>)])))
 
 (do-template [<name> <filter> <post>]
   [(def: #export <filter>
@@ -39,7 +39,7 @@
           <post>))
 
    (def: #export <name>
-     (-> AppData Int)
+     (-> App-Data Nat)
      (|>. (list;filter (|>. product;right <filter>))
           list;size))]
 
@@ -48,58 +48,58 @@
   )
 
 (def: #export (get-task-list !state)
-  (-> AppState (IO AppData))
-  (do IO/Monad
+  (-> App-State (IO App-Data))
+  (do Monad<IO>
     [[next-id data] (stm;read! !state)]
-    (wrap (list;sort (lambda [[idl _] [idr _]] (< idl idr))
+    (wrap (list;sort (lambda [[idl _] [idr _]] (n.< idl idr))
                      (dict;entries data)))))
 
 (def: #export (add-task task-desc !state)
-  (-> Text AppState (IO Bool))
-  (do IO/Monad
+  (-> Text App-State (IO Bool))
+  (do Monad<IO>
     [[next-id data] (stm;read! !state)
      #let [task {#&;completed? false
                  #&;description task-desc}
            data' (dict;put next-id task data)]
-     _ (stm;write! [(inc next-id) data']
+     _ (stm;write! [(n.inc next-id) data']
                    !state)]
     (wrap true)))
 
 (def: #export (toggle-task idx !state)
-  (-> Int AppState (IO Bool))
-  (do IO/Monad
+  (-> Nat App-State (IO Bool))
+  (do Monad<IO>
     [[next-id data] (stm;read! !state)]
     (case (dict;get idx data)
       (#;Some task)
-      (do %
+      (do @
         [#let [data' (dict;put idx (update@ #&;completed? not task) data)]
          _ (stm;write! [next-id data'] !state)]
         (wrap true))
 
       #;None
-      (:: IO/Monad wrap false))))
+      (:: Monad<IO> wrap false))))
 
 (def: #export (delete-task idx !state)
-  (-> Int AppState (IO Bool))
-  (do IO/Monad
+  (-> Nat App-State (IO Bool))
+  (do Monad<IO>
     [[next-id data] (stm;read! !state)]
     (case (dict;get idx data)
       (#;Some task)
-      (do %
+      (do @
         [_ (stm;write! [next-id (dict;remove idx data)] !state)]
         (wrap true))
 
       #;None
-      (:: IO/Monad wrap false))))
+      (:: Monad<IO> wrap false))))
 
 (def: #export (clear-completed state)
-  (-> AppState (IO Bool))
-  (do IO/Monad
+  (-> App-State (IO Bool))
+  (do Monad<IO>
     [task-list (get-task-list state)
      _ (|> task-list
            list;reverse
-           (map% %
-                 (: (-> [Int &;Task] (IO Bool))
+           (mapM @
+                 (: (-> [Nat &;Task] (IO Bool))
                     (lambda [[idx task]]
                       (if (completed-task? task)
                         (delete-task idx state)

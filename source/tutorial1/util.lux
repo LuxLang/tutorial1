@@ -3,14 +3,15 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         lux/data/text/format
-         (.. (server ["&server" core])))
+(;module:
+  lux
+  lux/data/text/format
+  (.. (server ["&server" core])))
 
 ## [Values]
 (def: #export server-port
   &server;Port
-  8080)
+  +8080)
 
 (def: #export page-title
   Text
@@ -37,4 +38,4 @@
 
 (def: #export default-referer
   &server;URL
-  (<> default-host all-path))
+  (format default-host all-path))

@@ -3,35 +3,36 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         (lux (control monad
-                       eq)
-              (data maybe
-                    [list "" List/Fold "List/" List/Monad]
-                    text/format
-                    [product])
-              (codata io)
-              host)
-         (.. ["&" core]
-             ["&;" state]
-             ["&;" util]
-             (server ["&;" html]
-                     ["&;" css])))
+(;module:
+  lux
+  (lux (control monad
+                eq)
+       (data maybe
+             text/format
+             [product]
+             (struct [list "" Fold<List> "List/" Monad<List>]))
+       (codata io)
+       host)
+  (.. ["&" core]
+      ["&;" state]
+      ["&;" util]
+      (server ["&;" html]
+              ["&;" css])))
 
 ## [Types]
-(type: #export DisplayFilter
+(type: #export Display-Filter
   {#;doc "Models the different filter views."}
   #All
   #Active
   #Completed)
 
 ## [Structs]
-(struct: DisplayFilter/Eq (Eq DisplayFilter)
+(struct: _ (Eq Display-Filter)
   (def: (= x y)
     (case [x y]
-      (\template [<tag>]
-       [<tag> <tag>]
-       true)
+      (^template [<tag>]
+        [<tag> <tag>]
+        true)
       ([#All] [#Active] [#Completed])
       
       _
@@ -41,7 +42,7 @@
 (def: #export css
   {#;doc "The entire CSS style-sheet for the UI."}
   &css;CSS
-  (&css;@css
+  (&css;css
    (List/join
     (list (&css;rule "body"
                      {"font" "14px 'Helvetica Neue', Helvetica, Arial, sans-serif"
@@ -146,9 +147,9 @@
           ))))
 
 (def: (task-button$ path css-class label idx)
-  (-> Text Text Text Int &html;Html)
+  (-> Text Text Text Nat &html;Html)
   (&html;a {"class" css-class
-            "href" (<> path "?id=" (%i idx))}
+            "href" (format path "?id=" (%i (nat-to-int idx)))}
            label))
 
 (def: done-label     Text "&#9745;")  ## check-mark
@@ -156,9 +157,9 @@
 (def: delete-label   Text "&#10060;") ## X-mark
 
 (def: (task$ [task-idx task])
-  (-> [Int &;Task] &html;Html)
-  (let [(\slots [#&;completed? #&;description]) task]
-    (&html;div {"class" (<> "task" (if completed? " completed" ""))}
+  (-> [Nat &;Task] &html;Html)
+  (let [(^slots [#&;completed? #&;description]) task]
+    (&html;div {"class" (format "task" (if completed? " completed" ""))}
                (task-button$ &util;toggle-path
                              "completed-toggle"
                              (if completed? done-label not-done-label)
@@ -184,15 +185,15 @@
                             "value" "Submit"})))
 
 (def: (tasks-left$ amount)
-  (-> Int &html;Html)
+  (-> Nat &html;Html)
   (&html;span {"class" "tasks-left"}
-              (<> (%i amount) " items left")))
+              (format (%i (nat-to-int amount)) " items left")))
 
 (def: (filters$ active)
-  (-> DisplayFilter &html;Html)
-  (let [(\open) DisplayFilter/Eq]
+  (-> Display-Filter &html;Html)
+  (let [(^open) Eq<Display-Filter>]
     (let% [<filters> (do-template [<tag> <label> <path>]
-                       [(&html;a {"class" (<> "filter" (if (= <tag> active) " active" "")) "href" <path>} <label>)]
+                       [(&html;a {"class" (format "filter" (if (= <tag> active) " active" "")) "href" <path>} <label>)]
 
                        [#All       "All"       &util;all-path]
                        [#Active    "Active"    &util;active-path]
@@ -207,12 +208,12 @@
     (&html;span {} "")))
 
 (def: task-list$
-  (-> &state;AppData &html;Html)
-  (. (&html;div' (&html;@attrs {"class" "task-list"}))
+  (-> &state;App-Data &html;Html)
+  (. (&html;div' (&html;attrs {"class" "task-list"}))
      (List/map task$)))
 
 (def: #export (todo$ show-clear-completed? tasks-left active-filter tasks)
-  (-> Bool Int DisplayFilter &state;AppData &html;Html)
+  (-> Bool Nat Display-Filter &state;App-Data &html;Html)
   (&html;div {"class" "todo"}
              (&html;div {"class" "header"}
                         new-task-form$)
@@ -224,14 +225,14 @@
              ))
 
 (def: #export (show-clear-completed? state)
-  (-> &state;AppState (IO Bool))
-  (do IO/Monad
+  (-> &state;App-State (IO Bool))
+  (do Monad<IO>
     [tasks (&state;get-task-list state)]
-    (wrap (> 0 (&state;num-completed-tasks tasks)))))
+    (wrap (n.> +0 (&state;num-completed-tasks tasks)))))
 
 (def: #export (page$ content)
   (-> &html;Html &html;Html)
-  (&html;node "html" (&html;@attrs {})
+  (&html;node "html" (&html;attrs {})
               (list (&html;head {}
                                 (&html;title {} &util;page-title)
                                 (&html;link {"rel" "stylesheet"
@@ -241,7 +242,7 @@
                                 content))))
 
 (def: #export (filter-tasks display-filter tasks)
-  (-> DisplayFilter &state;AppData &state;AppData)
+  (-> Display-Filter &state;App-Data &state;App-Data)
   (case display-filter
     #All       tasks
     #Active    (list;filter (. &state;active-task? product;right)    tasks)

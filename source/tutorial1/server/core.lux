@@ -3,28 +3,31 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         (lux (data maybe
-                    [text "Text/" Text/Eq]
-                    [list "" List/Functor]
-                    [number "Int/" Int/Codec@Text]
-                    [array #+ Array]
-                    text/format
-                    error)
-              host
-              [meta]
-              (meta [ast]
-                    syntax)
-              (concurrency [async #+ Async]))
-         (.. ["&;" html]
-             ["&;" css]))
+(;module:
+  lux
+  (lux (control monad)
+       (data maybe
+             [text "Text/" Eq<Text>]
+             [number "Int/" Codec<Text,Int>]
+             text/format
+             error
+             (struct [list "" Functor<List>]
+                     [array #+ Array]))
+       host
+       [compiler]
+       (macro [ast]
+              ["s" syntax #+ Syntax syntax:])
+       (concurrency [promise #+ Promise]))
+  (.. ["&;" html]
+      ["&;" css])
+  )
 
 ## [Host]
 (jvm-import java.lang.String
-  (getBytes [] [] ByteArray))
+  (getBytes [] Byte-Array))
 
 ## [Types]
-(type: #export HttpMethod
+(type: #export HTTP-Method
   #GET
   #POST
   #PUT
@@ -36,19 +39,19 @@
   #TRACE)
 
 (type: #export Port
-  Int)
+  Nat)
 
-(type: #export HttpStatus
-  Int)
+(type: #export HTTP-Status
+  Nat)
 
-(type: #export HttpHeaders
+(type: #export HTTP-Headers
   (List [Text Text]))
 
-(type: #export HttpParams
+(type: #export HTTP-Params
   (List [Text Text]))
 
-(type: #export HttpBody
-  ByteArray)
+(type: #export HTTP-Body
+  Byte-Array)
 
 (type: #export URL
   Text)
@@ -56,28 +59,28 @@
 (type: #export URI
   Text)
 
-(type: #export HttpRequest
-  {#request-method  HttpMethod
+(type: #export HTTP-Request
+  {#request-method  HTTP-Method
    #request-uri     URI
-   #request-headers HttpHeaders
-   #request-params  HttpParams
-   #request-body    HttpBody})
+   #request-headers HTTP-Headers
+   #request-params  HTTP-Params
+   #request-body    HTTP-Body})
 
-(type: #export HttpResponse
-  {#response-status  HttpStatus
-   #response-headers HttpHeaders
-   #response-body    HttpBody})
+(type: #export HTTP-Response
+  {#response-status  HTTP-Status
+   #response-headers HTTP-Headers
+   #response-body    HTTP-Body})
 
-(type: #export RequestHandler
-  (-> HttpRequest (Async HttpResponse)))
+(type: #export Request-Handler
+  (-> HTTP-Request (Promise HTTP-Response)))
 
 ## [Values]
 (def: #export empty-headers
-  HttpHeaders
+  HTTP-Headers
   (list))
 
 ## [Syntax]
-(syntax: #export (@headers [headers (record^ (*^ (&^ text^ id^)))])
+(syntax: #export (headers [headers (s;record (s;some (s;seq s;text s;any)))])
   (wrap (list (` (list (~@ (map (: (-> [Text AST] AST)
                                    (lambda [[key val]]
                                      (` [(~ (ast;text key)) (~ val)])))
@@ -87,16 +90,16 @@
 (def: empty-response-body (String.getBytes [] ""))
 
 (def: #export (add-header name value headers)
-  (-> Text Text HttpHeaders HttpHeaders)
+  (-> Text Text HTTP-Headers HTTP-Headers)
   (#;Cons [name value] headers))
 
 (do-template [<name> <type> <content-type>]
   [(def: #export (<name> value)
-     (-> <type> HttpResponse)
+     (-> <type> HTTP-Response)
      (let [value-bytes (String.getBytes [] value)]
-       {#response-status 200
+       {#response-status +200
         #response-headers (|> empty-headers
-                              (add-header "Content-Length" (Int/encode (array-length value-bytes)))
+                              (add-header "Content-Length" (Int/encode (nat-to-int (array-length value-bytes))))
                               (add-header "Content-Type" <content-type>))
         #response-body value-bytes}))]
 
@@ -105,16 +108,16 @@
   )
 
 (def: #export (redirect to)
-  (-> URL HttpResponse)
-  {#response-status 307
+  (-> URL HTTP-Response)
+  {#response-status +307
    #response-headers (|> empty-headers
                          (add-header "Content-Length" "0")
                          (add-header "Content-Type" "text/html")
                          (add-header "Location" to))
    #response-body empty-response-body})
 
-(def: #export (HttpMethod$ name)
-  (-> Text (Maybe HttpMethod))
+(def: #export (HTTP-Method$ name)
+  (-> Text (Maybe HTTP-Method))
   (case name
     "GET"     (#;Some #GET)
     "POST"    (#;Some #POST)
@@ -128,23 +131,21 @@
     _         #;None))
 
 (def: #export (param-exists? name)
-  (-> Text HttpParams Bool)
+  (-> Text HTTP-Params Bool)
   (list;any? (lambda [[k v]] (Text/= name k))))
 
 (do-template [<name> <type> <desc>]
   [(def: #export (<name> name data)
      (-> Text <type> (Error Text))
-     (case (list;some (lambda [[k v]]
-                        (if (Text/= name k)
-                          (#;Some v)
-                          #;None))
+     (case (list;find (lambda [[k v]]
+                        (Text/= name k))
                       data)
-       (#;Some value)
+       (#;Some [k value])
        (#;Right value)
 
        #;None
-       (#;Left (<> <desc> " not found: " name))))]
+       (#;Left (format <desc> " not found: " name))))]
 
-  [get-header HttpHeaders "Header"]
-  [get-param  HttpParams  "Parameter"]
+  [get-header HTTP-Headers "Header"]
+  [get-param  HTTP-Params  "Parameter"]
   )

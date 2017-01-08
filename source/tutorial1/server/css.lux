@@ -3,14 +3,15 @@
 ##  If a copy of the MPL was not distributed with this file,
 ##  You can obtain one at http://mozilla.org/MPL/2.0/.
 
-(;import lux
-         (lux (data [text "Text/" Text/Monoid]
-                    text/format
-                    [list #* "" List/Functor List/Fold])
-              [meta]
-              (meta syntax
-                    [ast])
-              (control ["M" monad])))
+(;module:
+  lux
+  (lux (control ["M" monad])
+       (data [text "Text/" Monoid<Text>]
+             text/format
+             (struct [list #* "" Functor<List> Fold<List>]))
+       [compiler]
+       (macro ["s" syntax #+ Syntax syntax:]
+              [ast])))
 
 ## [Types]
 (type: #export Selector
@@ -20,18 +21,18 @@
   {#;doc "The properties associated with a CSS selector."}
   (List [Text Text]))
 
-(type: #export CssRule Text)
+(type: #export Css-Rule Text)
 
-(type: #export RuleSet (List CssRule))
+(type: #export Rule-Set (List Css-Rule))
 
 (type: #export CSS Text)
 
 ## [Syntax]
 (def: style^
   (Syntax (List [Text AST]))
-  (record^ (*^ (&^ text^ id^))))
+  (s;record (s;some (s;seq s;text s;any))))
 
-(syntax: #export (@style [style style^])
+(syntax: #export (style [style style^])
   (wrap (list (` (: Style
                     (list (~@ (map (: (-> [Text AST] AST)
                                       (lambda [[key val]]
@@ -42,24 +43,24 @@
 (def: (style->text style)
   (-> Style Text)
   (|> style
-      (map (lambda [[key val]] (<> key ": " val)))
+      (map (lambda [[key val]] (format key ": " val)))
       (text;join-with "; ")))
 
 (def: #export (rule' selector style children)
-  (-> Selector Style RuleSet RuleSet)
-  (let [selector-prefix (Text/++ selector " ")]
-    (list& (<> selector-prefix "{" (style->text style) "}")
-           (map (Text/++ selector-prefix) children))))
+  (-> Selector Style Rule-Set Rule-Set)
+  (let [selector-prefix (format selector " ")]
+    (list& (format selector-prefix "{" (style->text style) "}")
+           (map (Text/append selector-prefix) children))))
 
-(syntax: #export (rule [selector id^] style [children (*^ id^)])
+(syntax: #export (rule [selector s;any] style [children (s;some s;any)])
   (let [style' (case style
                  [_ (#;RecordS _)]
-                 (` (@style (~ style)))
+                 (` (style (~ style)))
 
                  _
                  style)]
-    (wrap (list (` (rule' (~ selector) (~ style') ((get@ #M;join List/Monad) (list (~@ children)))))))))
+    (wrap (list (` (rule' (~ selector) (~ style') ((get@ #M;join Monad<List>) (list (~@ children)))))))))
 
-(def: #export (@css rules)
-  (-> RuleSet CSS)
+(def: #export (css rules)
+  (-> Rule-Set CSS)
   (text;join-with "\n" rules))
